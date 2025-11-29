@@ -13,6 +13,7 @@ set -ouex pipefail
 dnf5 install -y \
   alacritty     \
   sddm          \
+  perl          \
   pipewire      \
   wofi          \
   brightnessctl
