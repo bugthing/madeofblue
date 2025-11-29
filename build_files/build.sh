@@ -24,21 +24,21 @@ dnf5 install -y \
 # Disable COPRs so they don't end up enabled on the final image:
 # dnf5 -y copr disable ublue-os/staging
 
-dnf5 -y copr enable solopasha/hyprland
-dnf5 -y install       \
-  hyprland            \
-  hyprpaper           \
-  hyprpicker          \
-  hypridle            \
-  hyprlock            \
-  hyprsunset          \
-  hyprpolkitagent     \
-  hyprsysteminfo      \
-  hyprpanel           \
-  qt6ct-kde           \
-  hyprland-qt-support \
-  hyprland-qtutils
-dnf5 -y copr disable solopasha/hyprland
+# dnf5 -y copr enable solopasha/hyprland
+# dnf5 -y install       \
+#   hyprland            \
+#   hyprpaper           \
+#   hyprpicker          \
+#   hypridle            \
+#   hyprlock            \
+#   hyprsunset          \
+#   hyprpolkitagent     \
+#   hyprsysteminfo      \
+#   hyprpanel           \
+#   qt6ct-kde           \
+#   hyprland-qt-support \
+#   hyprland-qtutils
+# dnf5 -y copr disable solopasha/hyprland
 
 #### Example for enabling a System Unit File
 

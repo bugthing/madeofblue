@@ -3,7 +3,9 @@ FROM scratch AS ctx
 COPY build_files /
 
 # Base Image
-FROM ghcr.io/ublue-os/base-main:latest
+#FROM ghcr.io/ublue-os/base-main:latest
+#FROM ghcr.io/wayblueorg/sway-nvidia:latest
+FROM ghcr.io/wayblueorg/hyprland-nvidia:latest
 
 ## Other possible base images include:
 # FROM ghcr.io/ublue-os/bazzite:latest
