@@ -2,6 +2,12 @@
 
 set -ouex pipefail
 
+# Bluefin-DX wires ccache in front of gcc/clang by default. Under buildah's
+# cache-mount overlay for /var/cache it hits a hardlink race ("ccache: error:
+# File exists") during Noctalia's parallel ninja build, so disable it for our
+# from-source compiles rather than fight the overlay semantics.
+export CCACHE_DISABLE=1
+
 ### Install packages
 
 # Wayland compositor (Niri) and the Wayland/GPU stack it needs.
