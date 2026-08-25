@@ -5,11 +5,12 @@ set -ouex pipefail
 ### Install packages
 
 # Wayland compositor (Niri) and the Wayland/GPU stack it needs.
+# GDM, polkit, PipeWire/WirePlumber and NetworkManager already ship with
+# bluefin-dx (inherited from silverblue-main); we only add what Niri needs
+# on top.
 dnf5 install -y \
     niri \
-    gdm \
     xdg-desktop-portal-gtk \
-    xdg-desktop-portal-gnome \
     mesa-dri-drivers \
     mesa-libGL \
     mesa-libEGL \
@@ -21,13 +22,9 @@ dnf5 install -y \
     swaylock \
     foot \
     fuzzel \
-    NetworkManager-tui \
-    pipewire \
-    wireplumber \
-    polkit \
     lxpolkit
 
-# Build tooling required to compile Noctalia from source.
+# Build tooling required to compile Noctalia and noctalia-greeter from source.
 dnf5 install -y \
     git \
     gcc \
@@ -76,6 +73,12 @@ dnf5 install -y \
     stb_image_write-devel \
     jemalloc-devel
 
+# noctalia-greeter build dependencies on top of the above (see its README.md).
+dnf5 install -y \
+    greetd \
+    dbus \
+    wlroots-devel
+
 ### Build and install Noctalia
 
 NOCTALIA_SRC="/tmp/noctalia-src"
@@ -87,12 +90,28 @@ just install release
 popd
 rm -rf "${NOCTALIA_SRC}"
 
+### Build and install the Noctalia greetd greeter
+
+# The upstream Justfile's configure-release target has no prefix knob, so we
+# drive meson directly to install under /usr instead of its default /usr/local.
+# We also skip scripts/setup_greeter_system.sh: Fedora's greetd RPM already
+# provides the system user, PAM stack and unit that script exists to create on
+# distros without one; system_files/etc/greetd/config.toml does the wiring.
+NOCTALIA_GREETER_SRC="/tmp/noctalia-greeter-src"
+git clone --depth=1 https://github.com/noctalia-dev/noctalia-greeter.git "${NOCTALIA_GREETER_SRC}"
+pushd "${NOCTALIA_GREETER_SRC}"
+meson setup build-release --buildtype=release --prefix=/usr
+meson compile -C build-release
+meson install -C build-release
+popd
+rm -rf "${NOCTALIA_GREETER_SRC}"
+
 ### Enable services
 
-# GDM gives us a Wayland-capable login greeter that can launch the Niri session.
-systemctl enable gdm.service
-systemctl enable NetworkManager.service
-systemctl enable polkit.service
+# Replace bluefin-dx's default GDM with greetd running the Noctalia greeter,
+# which lets the user pick between the GNOME session and Niri at login.
+systemctl disable gdm.service || true
+systemctl enable greetd.service
 
 ### Clean up
 

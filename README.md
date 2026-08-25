@@ -1,14 +1,15 @@
 # madeofblue
 
-A lightweight [bootc](https://github.com/bootc-dev/bootc) desktop image built on top of `ghcr.io/ublue-os/base-main:latest`, featuring the [Niri](https://github.com/YaLTeR/niri) scrollable-tiling Wayland compositor with the [Noctalia](https://github.com/noctalia-dev/noctalia) desktop shell (bar, launcher, notifications, control center, wallpaper, and lock screen) built from source and running on top of it.
+A [bootc](https://github.com/bootc-dev/bootc) desktop image built on top of [Bluefin-DX](https://github.com/ublue-os/bluefin) (`ghcr.io/ublue-os/bluefin-dx:stable`) — Bluefin's full GNOME desktop plus developer/container tooling and Homebrew — with the [Niri](https://github.com/YaLTeR/niri) scrollable-tiling Wayland compositor and the [Noctalia](https://github.com/noctalia-dev/noctalia) desktop shell (bar, launcher, notifications, control center, wallpaper, and lock screen) layered on top as an alternative session.
 
 This repo is derived from [ublue-os/image-template](https://github.com/ublue-os/image-template); most of the template's generic documentation below still applies (Justfile usage, ISO building, ArtifactHub, etc).
 
 ## What's in the image
 
-- **Compositor:** Niri (installed via `dnf5`), plus `swaybg`/`swayidle`/`swaylock` as fallbacks, `foot` (terminal) and `fuzzel` (app launcher).
+- **Base:** Bluefin-DX, so GNOME, Homebrew (via `ublue-os/brew`, extracted into `/home/linuxbrew` on first boot), and Bluefin's dev/container tooling are all present unchanged.
+- **Compositor:** Niri (installed via `dnf5`) as an alternative session alongside GNOME, plus `swaybg`/`swayidle`/`swaylock` as fallbacks, `foot` (terminal) and `fuzzel` (app launcher).
 - **Desktop shell:** [Noctalia](https://github.com/noctalia-dev/noctalia), compiled from source in `build_files/build.sh` per its [BUILDING.md](https://github.com/noctalia-dev/noctalia/blob/main/BUILDING.md) and installed to `/usr` (binary at `/usr/bin/noctalia`, assets under `/usr/share/noctalia/`).
-- **Display manager:** GDM, enabled via `systemctl enable gdm.service`, offering the Niri Wayland session at the login screen.
+- **Login screen:** Bluefin-DX's default GDM is disabled in favor of [`greetd`](https://sr.ht/~kennylevinsen/greetd/) running [Noctalia's own greeter](https://github.com/noctalia-dev/noctalia-greeter) (also compiled from source), configured via `system_files/etc/greetd/config.toml`. The greeter's session picker reads the standard `/usr/share/wayland-sessions/*.desktop` entries, so both the GNOME and Niri sessions are selectable at login.
 - **Default session config:** `system_files/etc/skel/.config/niri/config.kdl` is seeded into every new user's home directory. It launches Noctalia via `spawn-at-startup`, and ships a basic keybinding set (`Mod+Return` for a terminal, `Mod+D` for the launcher, `Mod+Q` to close a window, `Mod+1..4` for workspaces, `Mod+Shift+L` to lock, etc).
 
 ## Building locally
@@ -21,7 +22,7 @@ just build madeofblue latest
 podman build -t madeofblue:latest .
 ```
 
-The `Containerfile` clones and compiles Noctalia during the build, so expect the first build to take a while and to require network access for `dnf5` and `git clone`.
+The `Containerfile` clones and compiles both Noctalia and its greeter during the build, on top of the already-substantial Bluefin-DX base, so expect the first build to take a while and to require network access for `dnf5` and `git clone`.
 
 To boot the image locally in a VM without installing it anywhere, see the [Justfile Documentation](#justfile-documentation) section below (`just build-qcow2`, `just run-vm-qcow2`, etc.).
 
