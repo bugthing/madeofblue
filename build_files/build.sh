@@ -7,6 +7,7 @@ set -ouex pipefail
 # Wayland compositor (Niri) and the Wayland/GPU stack it needs.
 dnf5 install -y \
     niri \
+    gdm \
     xdg-desktop-portal-gtk \
     xdg-desktop-portal-gnome \
     mesa-dri-drivers \
