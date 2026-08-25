@@ -24,7 +24,7 @@ dnf5 install -y \
     pipewire \
     wireplumber \
     polkit \
-    polkit-gnome
+    lxpolkit
 
 # Build tooling required to compile Noctalia from source.
 dnf5 install -y \

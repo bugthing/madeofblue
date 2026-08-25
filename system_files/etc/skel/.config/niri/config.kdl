@@ -40,6 +40,9 @@ spawn-at-startup "noctalia"
 // this just avoids a flash of empty background before it is ready.
 spawn-at-startup "swaybg" "-c" "#1d1f21"
 
+// Polkit authentication agent, needed for GUI privilege-escalation prompts.
+spawn-at-startup "lxpolkit"
+
 binds {
     // Core session
     Mod+Shift+Slash { show-hotkey-overlay; }
