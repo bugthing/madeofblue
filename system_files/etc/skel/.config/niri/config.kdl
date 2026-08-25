@@ -1,0 +1,78 @@
+// Default Niri configuration shipped to every new user via /etc/skel.
+// Users are free to copy and edit this at ~/.config/niri/config.kdl.
+
+input {
+    keyboard {
+        xkb {}
+    }
+    touchpad {
+        tap
+        natural-scroll
+    }
+}
+
+output "*" {
+    scale 1.0
+}
+
+layout {
+    gaps 12
+    center-focused-column "never"
+
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.5
+        proportion 0.66667
+    }
+
+    default-column-width { proportion 0.5; }
+
+    focus-ring {
+        width 2
+    }
+}
+
+// Launch the Noctalia shell (bar, launcher, notifications, control center,
+// wallpaper, lock screen) as soon as the compositor starts.
+spawn-at-startup "noctalia"
+
+// Fallback wallpaper daemon; Noctalia manages the wallpaper once running,
+// this just avoids a flash of empty background before it is ready.
+spawn-at-startup "swaybg" "-c" "#1d1f21"
+
+binds {
+    // Core session
+    Mod+Shift+Slash { show-hotkey-overlay; }
+    Mod+Shift+E { quit; }
+    Mod+Shift+P { power-off-monitors; }
+
+    // Apps / launcher
+    Mod+Return { spawn "foot"; }
+    Mod+D { spawn "fuzzel"; }
+
+    // Window management
+    Mod+Q { close-window; }
+    Mod+F { maximize-column; }
+    Mod+Shift+F { fullscreen-window; }
+    Mod+Left  { focus-column-left; }
+    Mod+Right { focus-column-right; }
+    Mod+Up    { focus-window-up; }
+    Mod+Down  { focus-window-down; }
+    Mod+Shift+Left  { move-column-left; }
+    Mod+Shift+Right { move-column-right; }
+    Mod+Shift+Up    { move-window-up; }
+    Mod+Shift+Down  { move-window-down; }
+
+    // Workspaces
+    Mod+1 { focus-workspace 1; }
+    Mod+2 { focus-workspace 2; }
+    Mod+3 { focus-workspace 3; }
+    Mod+4 { focus-workspace 4; }
+    Mod+Shift+1 { move-column-to-workspace 1; }
+    Mod+Shift+2 { move-column-to-workspace 2; }
+    Mod+Shift+3 { move-column-to-workspace 3; }
+    Mod+Shift+4 { move-column-to-workspace 4; }
+
+    // Screen lock (Noctalia provides the lock-screen UI, swaylock is the fallback)
+    Mod+Shift+L { spawn "swaylock" "-f"; }
+}

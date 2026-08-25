@@ -35,6 +35,12 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     /ctx/build.sh
 
+### SYSTEM OVERLAY
+## Files under system_files/ are copied verbatim onto the final image, preserving their
+## path relative to /. This is where default user skel configs, session files, etc live.
+
+COPY system_files /
+
 ### LINTING
 ## Verify final image and contents are correct.
 RUN bootc container lint

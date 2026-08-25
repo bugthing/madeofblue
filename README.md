@@ -1,6 +1,87 @@
-# image-template
+# madeofblue
 
-This repository is meant to be a template for building your own custom [bootc](https://github.com/bootc-dev/bootc) image. This template is the recommended way to make customizations to any image published by the Universal Blue Project.
+A lightweight [bootc](https://github.com/bootc-dev/bootc) desktop image built on top of `ghcr.io/ublue-os/base-main:latest`, featuring the [Niri](https://github.com/YaLTeR/niri) scrollable-tiling Wayland compositor with the [Noctalia](https://github.com/noctalia-dev/noctalia) desktop shell (bar, launcher, notifications, control center, wallpaper, and lock screen) built from source and running on top of it.
+
+This repo is derived from [ublue-os/image-template](https://github.com/ublue-os/image-template); most of the template's generic documentation below still applies (Justfile usage, ISO building, ArtifactHub, etc).
+
+## What's in the image
+
+- **Compositor:** Niri (installed via `dnf5`), plus `swaybg`/`swayidle`/`swaylock` as fallbacks, `foot` (terminal) and `fuzzel` (app launcher).
+- **Desktop shell:** [Noctalia](https://github.com/noctalia-dev/noctalia), compiled from source in `build_files/build.sh` per its [BUILDING.md](https://github.com/noctalia-dev/noctalia/blob/main/BUILDING.md) and installed to `/usr` (binary at `/usr/bin/noctalia`, assets under `/usr/share/noctalia/`).
+- **Display manager:** GDM, enabled via `systemctl enable gdm.service`, offering the Niri Wayland session at the login screen.
+- **Default session config:** `system_files/etc/skel/.config/niri/config.kdl` is seeded into every new user's home directory. It launches Noctalia via `spawn-at-startup`, and ships a basic keybinding set (`Mod+Return` for a terminal, `Mod+D` for the launcher, `Mod+Q` to close a window, `Mod+1..4` for workspaces, `Mod+Shift+L` to lock, etc).
+
+## Building locally
+
+You need `podman` (or `docker`) installed. From the repository root:
+
+```bash
+just build madeofblue latest
+# or, without Just:
+podman build -t madeofblue:latest .
+```
+
+The `Containerfile` clones and compiles Noctalia during the build, so expect the first build to take a while and to require network access for `dnf5` and `git clone`.
+
+To boot the image locally in a VM without installing it anywhere, see the [Justfile Documentation](#justfile-documentation) section below (`just build-qcow2`, `just run-vm-qcow2`, etc.).
+
+## Rebasing an existing Fedora Atomic system onto this image
+
+From any `bootc`-based system (Fedora Silverblue/Kinoite, or any Universal Blue image):
+
+```bash
+# One-time, only needed the first time you rebase to an unsigned/differently-signed image:
+sudo bootc switch --enforce-container-sigpolicy=false ghcr.io/<your-username>/madeofblue:latest
+
+# Normal rebase once the image is signed and you trust it:
+sudo bootc switch ghcr.io/<your-username>/madeofblue:latest
+```
+
+Reboot to apply:
+
+```bash
+sudo systemctl reboot
+```
+
+After rebooting, select the "Niri" session at the GDM login screen. To switch back to your previous image at any point, run `sudo bootc rollback` and reboot again.
+
+## Building an installer ISO
+
+This template ships a `build-disk.yml` GitHub Actions workflow (see [Setting Up ISO Builds](#setting-up-iso-builds)) that uses [bootc-image-builder](https://osbuild.org/docs/bootc/) to turn the published container image into an ISO, qcow2, or raw disk image. To build one locally instead:
+
+```bash
+just build-iso madeofblue latest
+```
+
+or, using `disk_config/iso-gnome.toml` / `disk_config/iso-kde.toml` as templates for your own `disk_config/iso.toml` pointed at `ghcr.io/<your-username>/madeofblue:latest`, invoke `bootc-image-builder` directly:
+
+```bash
+sudo podman run --rm -it --privileged \
+  --pull=newer \
+  -v ./disk_config/iso.toml:/config.toml:ro \
+  -v ./output:/output \
+  -v /var/lib/containers/storage:/var/lib/containers/storage \
+  quay.io/centos-bootc/bootc-image-builder:latest \
+  --type iso \
+  --config /config.toml \
+  ghcr.io/<your-username>/madeofblue:latest
+```
+
+The resulting ISO under `./output/bootiso/` will boot into an offline installer for this image.
+
+## Verifying the Containerfile
+
+Before committing changes, lint the `Containerfile`:
+
+```bash
+podman run --rm -i docker.io/hadolint/hadolint < Containerfile
+```
+
+and shellcheck the build script:
+
+```bash
+podman run --rm -v "$PWD/build_files":/mnt:ro,Z docker.io/koalaman/shellcheck:stable /mnt/build.sh
+```
 
 # Community
 

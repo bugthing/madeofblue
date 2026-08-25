@@ -4,21 +4,95 @@ set -ouex pipefail
 
 ### Install packages
 
-# Packages can be installed from any enabled yum repo on the image.
-# RPMfusion repos are available by default in ublue main images
-# List of rpmfusion packages can be found here:
-# https://mirrors.rpmfusion.org/mirrorlist?path=free/fedora/updates/39/x86_64/repoview/index.html&protocol=https&redirect=1
+# Wayland compositor (Niri) and the Wayland/GPU stack it needs.
+dnf5 install -y \
+    niri \
+    xdg-desktop-portal-gtk \
+    xdg-desktop-portal-gnome \
+    mesa-dri-drivers \
+    mesa-libGL \
+    mesa-libEGL \
+    mesa-vulkan-drivers \
+    vulkan-loader \
+    wayland-utils \
+    swaybg \
+    swayidle \
+    swaylock \
+    foot \
+    fuzzel \
+    NetworkManager-tui \
+    pipewire \
+    wireplumber \
+    polkit \
+    polkit-gnome
 
-# this installs a package from fedora repos
-dnf5 install -y tmux 
+# Build tooling required to compile Noctalia from source.
+dnf5 install -y \
+    git \
+    gcc \
+    gcc-c++ \
+    clang \
+    cmake \
+    meson \
+    ninja-build \
+    just \
+    cargo \
+    rust \
+    pkgconf-pkg-config
 
-# Use a COPR Example:
-#
-# dnf5 -y copr enable ublue-os/staging
-# dnf5 -y install package
-# Disable COPRs so they don't end up enabled on the final image:
-# dnf5 -y copr disable ublue-os/staging
+# Noctalia build dependencies (see BUILDING.md in noctalia-dev/noctalia).
+dnf5 install -y \
+    wayland-devel \
+    wayland-protocols-devel \
+    libEGL-devel \
+    mesa-libGLES-devel \
+    freetype-devel \
+    fontconfig-devel \
+    cairo-devel \
+    pango-devel \
+    harfbuzz-devel \
+    libxkbcommon-devel \
+    glib2-devel \
+    libsecret-devel \
+    libsodium-devel \
+    sdbus-cpp-devel \
+    pipewire-devel \
+    wireplumber-devel \
+    pam-devel \
+    polkit-devel \
+    libcurl-devel \
+    libwebp-devel \
+    libjxl-devel \
+    libsndfile-devel \
+    librsvg2-devel \
+    libqalculate-devel \
+    libxml2-devel \
+    md4c-devel \
+    tomlplusplus-devel \
+    libical-devel \
+    json-devel \
+    stb_image_resize2-devel \
+    stb_image_write-devel \
+    jemalloc-devel
 
-#### Example for enabling a System Unit File
+### Build and install Noctalia
 
-systemctl enable podman.socket
+NOCTALIA_SRC="/tmp/noctalia-src"
+git clone --depth=1 https://github.com/noctalia-dev/noctalia.git "${NOCTALIA_SRC}"
+pushd "${NOCTALIA_SRC}"
+just configure release /usr
+just build release
+just install release
+popd
+rm -rf "${NOCTALIA_SRC}"
+
+### Enable services
+
+# GDM gives us a Wayland-capable login greeter that can launch the Niri session.
+systemctl enable gdm.service
+systemctl enable NetworkManager.service
+systemctl enable polkit.service
+
+### Clean up
+
+dnf5 clean all
