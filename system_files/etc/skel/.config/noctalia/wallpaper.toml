@@ -1,0 +1,5 @@
+# Browse Bluefin's bundled wallpapers in the picker instead of the default
+# ~/Pictures, which is empty on a fresh install. Noctalia merges every
+# *.toml in this directory; choices made in the UI go to settings.toml.
+[wallpaper]
+directory = "/usr/share/backgrounds/bluefin"
