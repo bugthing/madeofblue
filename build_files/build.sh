@@ -112,6 +112,10 @@ meson install -C build-release
 popd
 rm -rf "${NOCTALIA_GREETER_SRC}"
 
+# The greeter's tmpfiles rule creates its state dir for a "greeter" account,
+# which Fedora does not have; greetd's RPM runs the greeter as "greetd".
+sed -i 's/ greeter greeter / greetd greetd /' /usr/lib/tmpfiles.d/noctalia-greeter.conf
+
 ### Enable services
 
 # Replace bluefin-dx's default GDM with greetd running the Noctalia greeter,
