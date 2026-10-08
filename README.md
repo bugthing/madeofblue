@@ -44,7 +44,7 @@ Reboot to apply:
 sudo systemctl reboot
 ```
 
-After rebooting, select the "Niri" session at the GDM login screen. To switch back to your previous image at any point, run `sudo bootc rollback` and reboot again.
+After rebooting, select the "Niri" session at the Noctalia greeter login screen. To switch back to your previous image at any point, run `sudo bootc rollback` and reboot again.
 
 ## Building an installer ISO
 
