@@ -130,7 +130,7 @@ end
 
 function M.formatRun(r)
   local parts = {}
-  if r.exitCode == 124 or r.timedOut then
+  if r.exitCode == 124 or r.exitCode == 137 or r.timedOut then
     table.insert(parts, "timed out after " .. M.TIMEOUT_SECONDS .. "s (process killed)")
   end
   table.insert(parts, "exit code: " .. tostring(r.exitCode))
