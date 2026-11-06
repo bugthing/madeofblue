@@ -27,6 +27,15 @@ T.describe("redact.scrub", function()
     T.eq(kinds, "private-key")
   end)
 
+  T.it("removes PGP private key blocks", function()
+    local key = "-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQVYBGabc123\n=abcd\n-----END PGP PRIVATE KEY BLOCK-----"
+    local out, kinds = scrub("before\n" .. key .. "\nafter")
+    T.eq(out, "before\n[REDACTED:private-key]\nafter")
+    T.eq(kinds, "private-key")
+    out = scrub("x\n-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQVYBGabc123")
+    T.eq(out, "x\n[REDACTED:private-key]")
+  end)
+
   T.it("removes an unterminated private key to the end of the text", function()
     local out, kinds = scrub("before\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\nmore")
     T.eq(out, "before\n[REDACTED:private-key]")
