@@ -27,6 +27,12 @@ T.describe("redact.scrub", function()
     T.eq(kinds, "private-key")
   end)
 
+  T.it("removes an unterminated private key to the end of the text", function()
+    local out, kinds = scrub("before\n-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\nmore")
+    T.eq(out, "before\n[REDACTED:private-key]")
+    T.eq(kinds, "private-key")
+  end)
+
   T.it("removes known token formats", function()
     local out = scrub(table.concat({
       "a sk-ant-api03-abcdefghijklmnopqrstuvwxyz",

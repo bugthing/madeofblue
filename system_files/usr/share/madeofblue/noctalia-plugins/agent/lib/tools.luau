@@ -130,7 +130,9 @@ function M.formatRun(r)
   if r.stderr and r.stderr ~= "" then
     table.insert(parts, "stderr:\n" .. r.stderr)
   end
-  return M.truncate(M.sanitizeUtf8(table.concat(parts, "\n")))
+  -- Whole and raw: the agent scrubs before truncating, so a secret cannot
+  -- straddle the cut, and sanitises after, so the cut cannot split a character.
+  return table.concat(parts, "\n")
 end
 
 function M.resolvePath(path, io)
@@ -141,7 +143,8 @@ function M.resolvePath(path, io)
   return p
 end
 
--- Runs an approved call and calls cb(outputText) exactly once.
+-- Runs an approved call and calls cb(outputText) exactly once. The text is
+-- neither truncated nor UTF-8 sanitised; see Agent:onToolOutput.
 function M.execute(name, args, io, cb)
   if name == "run_command" then
     local argv = { "timeout", "--kill-after=5", tostring(M.TIMEOUT_SECONDS), "/bin/sh", "-c", args.command }
@@ -158,7 +161,7 @@ function M.execute(name, args, io, cb)
     elseif content == "" then
       cb("(empty file)")
     else
-      cb(M.truncate(M.sanitizeUtf8(content)))
+      cb(content)
     end
   elseif name == "write_file" then
     local ok, err = io.writeFile(M.resolvePath(args.path, io), args.content)

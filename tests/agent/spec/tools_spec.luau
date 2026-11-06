@@ -94,6 +94,21 @@ T.describe("tools", function()
     T.eq(got, "wrote 3 bytes to ~/a.txt")
   end)
 
+  T.it("returns command output and file contents whole, for the agent to scrub first", function()
+    local long = string.rep("a", 9000) .. "\255" .. string.rep("b", 9000)
+    local io = fakeIo({ ["/home/u/big"] = long })
+    local got
+    Tools.execute("run_command", { command = "cat big" }, io, function(out)
+      got = out
+    end)
+    io.runs[1].cb({ exitCode = 0, stdout = long, stderr = "" })
+    T.eq(got, "exit code: 0\nstdout:\n" .. long)
+    Tools.execute("read_file", { path = "~/big" }, io, function(out)
+      got = out
+    end)
+    T.eq(got, long)
+  end)
+
   T.it("truncates long output keeping head and tail", function()
     local long = string.rep("a", 9000) .. string.rep("b", 9000)
     local out = Tools.truncate(long)

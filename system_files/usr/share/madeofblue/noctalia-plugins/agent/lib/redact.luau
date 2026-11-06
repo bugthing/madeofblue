@@ -98,6 +98,8 @@ end
 
 local TOKEN_RULES = {
   { kind = "private-key", pattern = "%-%-%-%-%-BEGIN [%w ]*PRIVATE KEY%-%-%-%-%-.-%-%-%-%-%-END [%w ]*PRIVATE KEY%-%-%-%-%-" },
+  -- No END line (cut off, or pasted partially): redact to the end of the text.
+  { kind = "private-key", pattern = "%-%-%-%-%-BEGIN [%w ]*PRIVATE KEY%-%-%-%-%-.*" },
   { kind = "anthropic-key", pattern = "%f[%w]sk%-ant%-[%w%-_]+", min = 20 },
   { kind = "api-key", pattern = "%f[%w]sk%-[%w%-_]+", min = 20 },
   { kind = "github-token", pattern = "%f[%w]gh[pousr]_%w+", min = 20 },

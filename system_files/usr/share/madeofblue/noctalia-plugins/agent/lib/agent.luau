@@ -304,14 +304,21 @@ function Agent:approve(id)
   end)
 end
 
+-- Scrub the whole output first, then truncate, then sanitise UTF-8: scrubbing
+-- truncated text would miss a key whose END line, or a token, was cut.
 function Agent:onToolOutput(item, output)
-  local scrubbed, kinds = self.deps.redact.scrub(output, self:secrets())
-  item.output, item.scrubbed, item.kinds = output, scrubbed, kinds
+  local t, redact, secrets = self.deps.tools, self.deps.redact, self:secrets()
+  local function shape(s)
+    return t.sanitizeUtf8(t.truncate(s))
+  end
+  local scrubbed, kinds = redact.scrub(output, secrets)
+  item.output = shape(redact.scrubLiterals(output, secrets))
+  item.scrubbed, item.kinds = shape(scrubbed), kinds
   if #kinds > 0 or item.rule then
     item.state = "review"
   else
     item.state = "done"
-    item.sent = scrubbed
+    item.sent = item.scrubbed
   end
   self:maybeContinue()
 end
