@@ -38,7 +38,7 @@ spawn-at-startup "noctalia"
 
 // Fallback wallpaper daemon; Noctalia manages the wallpaper once running,
 // this just avoids a flash of empty background before it is ready.
-spawn-at-startup "swaybg" "-c" "#1d1f21"
+spawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/madeofblue/madeofblue.jpeg" "-m" "fill" "-c" "#1d1f21"
 
 // Polkit authentication agent, needed for GUI privilege-escalation prompts.
 spawn-at-startup "lxpolkit"

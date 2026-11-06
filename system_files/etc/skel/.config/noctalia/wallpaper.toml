@@ -3,3 +3,7 @@
 # *.toml in this directory; choices made in the UI go to settings.toml.
 [wallpaper]
 directory = "/usr/share/backgrounds/bluefin"
+
+# MadeOfBlue's own wallpaper is the default until the user picks another.
+[wallpaper.default]
+path = "/usr/share/backgrounds/madeofblue/madeofblue.jpeg"
