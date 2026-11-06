@@ -1,8 +1,10 @@
 --!nonstrict
 -- Bar icon. Shows whether the agent is set up, working, or waiting for the
 -- user, and toggles the chat panel on click. The panel publishes "status"
--- through noctalia.state; before the panel's first open we fall back to
--- checking for the saved settings file.
+-- through noctalia.state; while it has published nothing (before the panel
+-- runtime starts, or after it exits) we fall back to the saved settings file.
+
+local Config = require("./lib/config.luau")
 
 local PANEL = "madeofblue/agent:chat"
 
@@ -20,14 +22,22 @@ local function show(status)
   barWidget.setTooltip(look.tip)
 end
 
-local initial = noctalia.state.get("status")
-if initial == nil then
+local function fromSettings()
   local dir = noctalia.pluginDataDir()
-  initial = (dir and noctalia.fileExists(dir .. "/config.json")) and "idle" or "unconfigured"
+  local raw = dir and noctalia.readFile(dir .. "/config.json")
+  if raw and Config.decode(raw, noctalia.json) then
+    return "idle"
+  end
+  return "unconfigured"
 end
-show(initial)
 
-noctalia.state.watch("status", show)
+local function update(status)
+  show(status or fromSettings())
+end
+
+update(noctalia.state.get("status"))
+
+noctalia.state.watch("status", update)
 
 function onClick()
   noctalia.togglePanel(PANEL)

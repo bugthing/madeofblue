@@ -572,3 +572,9 @@ if config then
   makeAgent()
 end
 publishStatus()
+
+-- The runtime is going away: drop the published status so the bar icon
+-- falls back to checking the saved settings instead of showing a stale state.
+function onExit(_signal, _reason)
+  noctalia.state.set("status", nil)
+end
