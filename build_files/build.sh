@@ -21,7 +21,6 @@ dnf5 install -y \
     swayidle \
     swaylock \
     foot \
-    fuzzel \
     lxpolkit
 
 ### Install Noctalia and its greetd greeter
