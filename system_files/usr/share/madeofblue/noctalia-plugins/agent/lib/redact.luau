@@ -199,6 +199,56 @@ local function scrubAssignment(line, mark)
   return prefix .. key .. sep .. mark("secret-value")
 end
 
+local JSON_LITERALS = { ["null"] = true, ["true"] = true, ["false"] = true }
+
+-- "key": value pairs anywhere in a line, e.g. one-line JSON responses.
+-- Quoted values end at the first unescaped quote; unquoted ones at , } or
+-- whitespace. Nested objects and arrays are left to the other rules.
+local function scrubInlineJson(text, mark)
+  local out, i, n = {}, 1, #text
+  while true do
+    local _, b, key = string.find(text, '"([%w_%.%-]+)"%s*:%s*', i)
+    if not b then
+      break
+    end
+    local nextChar = string.sub(text, b + 1, b + 1)
+    local valueEnd = nil -- index after the redacted value
+    if isSecretKey(key) and nextChar == '"' then
+      local j = b + 2
+      while j <= n do
+        local ch = string.sub(text, j, j)
+        if ch == "\\" then
+          j += 2
+        elseif ch == '"' or ch == "\n" then
+          break
+        else
+          j += 1
+        end
+      end
+      j = math.min(j, n + 1)
+      if not keepValue(string.sub(text, b + 2, j - 1)) then
+        table.insert(out, string.sub(text, i, b + 1))
+        valueEnd = j
+      end
+    elseif isSecretKey(key) and nextChar ~= "" and not string.find(nextChar, "[%[{]") then
+      local value = string.match(text, "^[^,}%s]+", b + 1)
+      if value and not JSON_LITERALS[value] and not keepValue(value) then
+        table.insert(out, string.sub(text, i, b))
+        valueEnd = b + 1 + #value
+      end
+    end
+    if valueEnd then
+      table.insert(out, mark("secret-value"))
+      i = valueEnd
+    else
+      table.insert(out, string.sub(text, i, b))
+      i = b + 1
+    end
+  end
+  table.insert(out, string.sub(text, i))
+  return table.concat(out)
+end
+
 -- Removes only the given literal values (the agent's own token).
 function M.scrubLiterals(text, literals)
   for _, lit in ipairs(literals or {}) do
@@ -253,13 +303,7 @@ function M.scrub(text, literals)
   text = string.gsub(text, "[^\n]+", function(line)
     return scrubAssignment(line, mark)
   end)
-  -- "key": "value" pairs anywhere in a line, e.g. one-line JSON responses.
-  text = string.gsub(text, '("([%w_%.%-]+)"%s*:%s*)"([^"\n]*)"', function(prefix, key, value)
-    if not isSecretKey(key) or keepValue(value) then
-      return nil
-    end
-    return prefix .. '"' .. mark("secret-value") .. '"'
-  end)
+  text = scrubInlineJson(text, mark)
 
   local kinds = {}
   for kind in pairs(hits) do
