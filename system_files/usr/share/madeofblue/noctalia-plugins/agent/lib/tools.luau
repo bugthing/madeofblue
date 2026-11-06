@@ -9,6 +9,8 @@ local M = {}
 M.TIMEOUT_SECONDS = 120
 M.OUTPUT_LIMIT = 16384
 M.OUTPUT_KEEP = 8192
+-- Larger outputs are scrubbed only in a head and a tail window of this size.
+M.SCRUB_WINDOW = 262144
 
 M.SCHEMAS = {
   {
@@ -120,12 +122,16 @@ function M.sanitizeUtf8(s)
   return table.concat(out)
 end
 
+-- Joins a head and a tail around a marker saying how many bytes were dropped.
+function M.joinCut(head, tail, dropped)
+  return head .. "\n…[" .. dropped .. " bytes truncated]…\n" .. tail
+end
+
 function M.truncate(s)
   if #s <= M.OUTPUT_LIMIT then
     return s
   end
-  local cut = #s - 2 * M.OUTPUT_KEEP
-  return string.sub(s, 1, M.OUTPUT_KEEP) .. "\n…[" .. cut .. " bytes truncated]…\n" .. string.sub(s, -M.OUTPUT_KEEP)
+  return M.joinCut(string.sub(s, 1, M.OUTPUT_KEEP), string.sub(s, -M.OUTPUT_KEEP), #s - 2 * M.OUTPUT_KEEP)
 end
 
 function M.formatRun(r)

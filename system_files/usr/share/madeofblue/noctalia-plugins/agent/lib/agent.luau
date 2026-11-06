@@ -306,15 +306,38 @@ function Agent:approve(id)
   end)
 end
 
--- Scrub the whole output first, then truncate, then sanitise UTF-8: scrubbing
--- truncated text would miss a key whose END line, or a token, was cut.
+-- Scrub first, then truncate, then sanitise UTF-8: scrubbing truncated text
+-- would miss a key whose END line, or a token, was cut. To bound the work on
+-- the UI thread, output over two windows is scrubbed only in a head and a
+-- tail window; the kept 8 KB ends lie well inside them.
 function Agent:onToolOutput(item, output)
   local t, redact, secrets = self.deps.tools, self.deps.redact, self:secrets()
-  local function shape(s)
-    return t.sanitizeUtf8(t.truncate(s))
+  local w = t.SCRUB_WINDOW
+  local windows = { output }
+  if #output > 2 * w then
+    windows = { string.sub(output, 1, w), string.sub(output, -w) }
   end
-  local scrubbed, kinds = redact.scrub(output, secrets)
-  item.output = shape(redact.scrubLiterals(output, secrets))
+  local scrubbed, plain, seen = {}, {}, {}
+  for i, part in ipairs(windows) do
+    local s, ks = redact.scrub(part, secrets)
+    scrubbed[i], plain[i] = s, redact.scrubLiterals(part, secrets)
+    for _, k in ipairs(ks) do
+      seen[k] = true
+    end
+  end
+  local kinds = {}
+  for k in pairs(seen) do
+    table.insert(kinds, k)
+  end
+  table.sort(kinds)
+  local function shape(parts)
+    if #parts == 1 then
+      return t.sanitizeUtf8(t.truncate(parts[1]))
+    end
+    local keep = t.OUTPUT_KEEP
+    return t.sanitizeUtf8(t.joinCut(string.sub(parts[1], 1, keep), string.sub(parts[2], -keep), #output - 2 * keep))
+  end
+  item.output = shape(plain)
   item.scrubbed, item.kinds = shape(scrubbed), kinds
   if #kinds > 0 or item.rule then
     item.state = "review"

@@ -264,6 +264,40 @@ T.describe("agent", function()
     T.notContains(h.requests[#h.requests].req.body, "tok-SECR")
   end)
 
+  T.it("scrubs very large outputs in bounded head and tail windows", function()
+    local h = setup()
+    local largest = 0
+    local function track(s)
+      largest = math.max(largest, #s)
+    end
+    h.agent.deps.redact = setmetatable({
+      scrub = function(s, l)
+        track(s)
+        return Redact.scrub(s, l)
+      end,
+      scrubLiterals = function(s, l)
+        track(s)
+        return Redact.scrubLiterals(s, l)
+      end,
+    }, { __index = Redact })
+    h.agent:send("show")
+    h.reply({ call("c1", "run_command", '{"command":"cat big"}') })
+    local item = h.lastTool()
+    h.agent:approve(item.id)
+    local ghp = "ghp_" .. string.rep("Z", 36)
+    local body = string.rep("a", 2000) .. " " .. ghp .. " " .. string.rep("m", 3 * 1024 * 1024) .. " " .. TOKEN .. " " .. string.rep("z", 1000)
+    h.runs[1].cb({ exitCode = 0, stdout = body, stderr = "" })
+    T.truthy(largest <= Tools.SCRUB_WINDOW, "scrub saw at most one window, got " .. largest)
+    T.eq(item.state, "review")
+    T.eq(table.concat(item.kinds, ","), "agent-token,github-token")
+    T.notContains(item.scrubbed, "ghp_")
+    T.notContains(item.output, TOKEN)
+    local total = #"exit code: 0\nstdout:\n" + #body
+    T.contains(item.scrubbed, "…[" .. (total - 2 * Tools.OUTPUT_KEEP) .. " bytes truncated]…")
+    T.truthy(#item.scrubbed < 2 * Tools.OUTPUT_KEEP + 100)
+    T.eq(string.sub(item.output, -10), string.rep("z", 10))
+  end)
+
   T.it("never splits a UTF-8 character when truncating", function()
     local h = setup()
     h.agent:send("show")
