@@ -106,6 +106,15 @@ rm -rf "${NOCTALIA_SRC}"
 NOCTALIA_GREETER_SRC="/tmp/noctalia-greeter-src"
 git clone --depth=1 https://github.com/noctalia-dev/noctalia-greeter.git "${NOCTALIA_GREETER_SRC}"
 pushd "${NOCTALIA_GREETER_SRC}"
+# Upstream hard-codes -march=native -mtune=native for release builds, which
+# targets the CI runner's CPU. On older CPUs (e.g. Whiskey Lake) the greeter
+# then dies with SIGILL at startup and greetd gives up. Build for Fedora's
+# baseline instead, and fail if upstream moves the flags somewhere we miss.
+sed -i -E "/'-m(arch|tune)=native',?/s/'-m(arch|tune)=native',? *//g" meson.build
+if grep -rn --include=meson.build -e '-m\(arch\|tune\)=native' .; then
+    echo "noctalia-greeter still builds with -march/-mtune=native" >&2
+    exit 1
+fi
 meson setup build-release --buildtype=release --prefix=/usr
 meson compile -C build-release
 meson install -C build-release
