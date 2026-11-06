@@ -345,8 +345,11 @@ local function toolCard(item)
         text = "Open in terminal",
         variant = "ghost",
         onClick = function()
-          noctalia.runInTerminal(item.args.command)
-          agent:handOff(item.id)
+          if noctalia.runInTerminal(item.args.command) then
+            agent:handOff(item.id)
+          else
+            noctalia.notifyError("Could not open a terminal", "Set $TERMINAL or install a terminal emulator. The command was not run.")
+          end
         end,
       }))
     end
