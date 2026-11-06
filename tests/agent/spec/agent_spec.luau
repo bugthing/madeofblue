@@ -278,6 +278,16 @@ T.describe("agent", function()
     T.truthy(utf8.len(item.output) ~= nil, "full output is valid UTF-8")
   end)
 
+  T.it("removes the token from every request body, whatever its source", function()
+    local h = setup()
+    h.agent.deps.system = "sys " .. TOKEN
+    table.insert(h.agent.history, { role = "assistant", text = "echo " .. TOKEN })
+    h.agent:send("hi")
+    T.notContains(h.requests[1].req.body, TOKEN)
+    T.contains(h.requests[1].req.body, "[REDACTED:agent-token]")
+    T.contains(table.concat(h.requests[1].req.headers, "\n"), "Bearer " .. TOKEN, "headers keep the token")
+  end)
+
   T.it("gives up after repeated invalid tool calls", function()
     local h = setup()
     h.agent:send("go")

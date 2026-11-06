@@ -151,6 +151,8 @@ function Agent:startStream()
   self.current = self:push({ kind = "assistant", text = "" })
   self.status = "streaming"
   local req = d.provider.buildRequest(d.config, d.system, self.history, d.tools.SCHEMAS, d.json)
+  -- Last line of defence: the token belongs in the headers only.
+  req.body = d.redact.scrubLiterals(req.body, self:secrets())
   local handle = d.transport(req, function(line)
     if self.gen == gen then
       self:onLine(line)
