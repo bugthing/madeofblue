@@ -96,6 +96,105 @@ function M.checkSubject(text, opts)
   return nil
 end
 
+local TOKEN_RULES = {
+  { kind = "private-key", pattern = "%-%-%-%-%-BEGIN [%w ]*PRIVATE KEY%-%-%-%-%-.-%-%-%-%-%-END [%w ]*PRIVATE KEY%-%-%-%-%-" },
+  { kind = "anthropic-key", pattern = "%f[%w]sk%-ant%-[%w%-_]+", min = 20 },
+  { kind = "api-key", pattern = "%f[%w]sk%-[%w%-_]+", min = 20 },
+  { kind = "github-token", pattern = "%f[%w]gh[pousr]_%w+", min = 20 },
+  { kind = "github-token", pattern = "%f[%w]github_pat_[%w_]+", min = 30 },
+  { kind = "aws-key", pattern = "%f[%w]AKIA[%u%d]+", min = 20 },
+  { kind = "slack-token", pattern = "%f[%w]xox[abprs]%-[%w%-]+", min = 15 },
+  { kind = "gitlab-token", pattern = "%f[%w]glpat%-[%w%-_]+", min = 20 },
+  { kind = "jwt", pattern = "eyJ[%w%-_]+%.eyJ[%w%-_]+%.[%w%-_]+" },
+}
+
+local SECRET_KEY_WORDS = { "TOKEN", "SECRET", "PASSWORD", "PASSWD", "API_KEY", "API-KEY", "APIKEY", "PRIVATE" }
+
+local function isSecretKey(key)
+  local upper = string.upper(key)
+  for _, word in ipairs(SECRET_KEY_WORDS) do
+    if string.find(upper, word, 1, true) then
+      return true
+    end
+  end
+  return false
+end
+
+local function scrubAssignment(line, mark)
+  local prefix, key, sep, value = string.match(line, "^(%s*export%s+)([%w_]+)(=)(.*)$")
+  if not prefix then
+    prefix, key, sep, value = string.match(line, '^(%s*)([%w_%.%-"]+)(%s*[=:]%s*)(.*)$')
+  end
+  if not prefix or not isSecretKey(key) then
+    return nil
+  end
+  if string.match(value, "^[\"'%s,]*$") or string.sub(value, 1, 9) == "[REDACTED" then
+    return nil
+  end
+  return prefix .. key .. sep .. mark("secret-value")
+end
+
+-- Removes only the given literal values (the agent's own token).
+function M.scrubLiterals(text, literals)
+  for _, lit in ipairs(literals or {}) do
+    if type(lit) == "string" and #lit >= 6 then
+      text = replacePlain(text, lit, "[REDACTED:agent-token]")
+    end
+  end
+  return text
+end
+
+-- Returns the scrubbed text and a sorted list of the kinds of secret removed.
+function M.scrub(text, literals)
+  local hits = {}
+  local function mark(kind)
+    hits[kind] = true
+    return "[REDACTED:" .. kind .. "]"
+  end
+
+  for _, lit in ipairs(literals or {}) do
+    if type(lit) == "string" and #lit >= 6 then
+      local n
+      text, n = replacePlain(text, lit, "[REDACTED:agent-token]")
+      if n > 0 then
+        hits["agent-token"] = true
+      end
+    end
+  end
+
+  for _, r in ipairs(TOKEN_RULES) do
+    text = string.gsub(text, r.pattern, function(m)
+      if r.min and #m < r.min then
+        return nil
+      end
+      return mark(r.kind)
+    end)
+  end
+
+  text = string.gsub(text, "([Aa]uthorization%s*:%s*)[^\r\n]+", function(prefix)
+    return prefix .. mark("auth-header")
+  end)
+  text = string.gsub(text, "([Bb]earer%s+)([%w%-%._~%+/=]+)", function(prefix, token)
+    if #token < 8 or string.sub(token, 1, 9) == "[REDACTED" then
+      return nil
+    end
+    return prefix .. mark("bearer-token")
+  end)
+  text = string.gsub(text, "(%a[%w+.-]*://)([^/%s:@]+):([^/%s@]+)@", function(scheme)
+    return scheme .. mark("url-credentials") .. "@"
+  end)
+  text = string.gsub(text, "[^\n]+", function(line)
+    return scrubAssignment(line, mark)
+  end)
+
+  local kinds = {}
+  for kind in pairs(hits) do
+    table.insert(kinds, kind)
+  end
+  table.sort(kinds)
+  return text, kinds
+end
+
 M._replacePlain = replacePlain
 
 return M
