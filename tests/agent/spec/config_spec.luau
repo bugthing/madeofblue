@@ -42,6 +42,13 @@ T.describe("config", function()
     T.eq(#Config.validate(cfg({ token = "" })), 0)
   end)
 
+  T.it("rejects control characters that could inject headers", function()
+    T.contains(table.concat(Config.validate(cfg({ host = "https://a.example.com/v1\r\nX-Evil: 1" })), "\n"), "Host contains invalid characters")
+    T.contains(table.concat(Config.validate(cfg({ model = "m\nX-Evil: 1" })), "\n"), "Model contains invalid characters")
+    T.contains(table.concat(Config.validate(cfg({ token = "sk-a\r\nX-Evil: 1" })), "\n"), "Token contains invalid characters")
+    T.contains(table.concat(Config.validate(cfg({ token = "sk-a\tb" })), "\n"), "Token contains invalid characters")
+  end)
+
   T.it("round-trips through JSON", function()
     local c = cfg({ token = "secret-token" })
     local back = Config.decode(Config.encode(c, json), json)

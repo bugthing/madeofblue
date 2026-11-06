@@ -77,6 +77,12 @@ function M.validate(cfg)
   if cfg.provider == "anthropic" and cfg.token == "" then
     table.insert(errors, "Anthropic needs an API token.")
   end
+  -- These go into the URL and HTTP headers; CR/LF would inject headers.
+  for _, field in ipairs({ { "Host", cfg.host }, { "Model", cfg.model }, { "Token", cfg.token } }) do
+    if type(field[2]) == "string" and string.find(field[2], "%c") then
+      table.insert(errors, field[1] .. " contains invalid characters.")
+    end
+  end
   return errors
 end
 
