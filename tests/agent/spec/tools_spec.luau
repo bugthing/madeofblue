@@ -131,6 +131,26 @@ T.describe("tools", function()
     T.eq(Tools.subject("run_command", { command = "ls" }), "ls")
     T.eq(Tools.subject("read_file", { path = "/etc/hosts" }), "/etc/hosts")
   end)
+
+  T.it("checks file tools against the resolved absolute path", function()
+    local io = fakeIo()
+    T.eq(Tools.subject("read_file", { path = "/home/u/x/../.local/state/agent/config.json" }, io), "/home/u/.local/state/agent/config.json")
+    T.eq(Tools.subject("write_file", { path = "~/a/./b//c/..", content = "" }, io), "/home/u/a/b")
+    T.eq(Tools.subject("read_file", { path = "notes/../../../etc/shadow" }, io), "/etc/shadow")
+    T.eq(Tools.subject("read_file", { path = "/../../etc" }, io), "/etc")
+    T.eq(Tools.subject("run_command", { command = "cat a/../b" }, io), "cat a/../b")
+  end)
+
+  T.it("opens the path it checked", function()
+    local io = fakeIo({ ["/home/u/b"] = "B" })
+    local got
+    Tools.execute("read_file", { path = "~/a/../b" }, io, function(out)
+      got = out
+    end)
+    T.eq(got, "B")
+    Tools.execute("write_file", { path = "~/a/../c", content = "C" }, io, function() end)
+    T.eq(io.writes["/home/u/c"], "C")
+  end)
 end)
 
 return true

@@ -70,10 +70,27 @@ function M.parseArgs(name, argsJson, json)
   return args
 end
 
--- The text the sensitive-path rules are checked against.
-function M.subject(name, args)
+-- Resolves "." and ".." segments lexically in an absolute path.
+function M.cleanPath(p)
+  local parts = {}
+  for seg in string.gmatch(p, "[^/]+") do
+    if seg == ".." then
+      table.remove(parts)
+    elseif seg ~= "." then
+      table.insert(parts, seg)
+    end
+  end
+  return "/" .. table.concat(parts, "/")
+end
+
+-- The text the sensitive-path rules are checked against. With io, file tools
+-- give the resolved absolute path, which is also the path execute opens.
+function M.subject(name, args, io)
   if name == "run_command" then
     return args.command
+  end
+  if io then
+    return M.cleanPath(M.resolvePath(args.path, io))
   end
   return args.path
 end
@@ -155,7 +172,7 @@ function M.execute(name, args, io, cb)
       cb("error: the command could not be started")
     end
   elseif name == "read_file" then
-    local content, err = io.readFile(M.resolvePath(args.path, io))
+    local content, err = io.readFile(M.subject(name, args, io))
     if content == nil then
       cb("error: " .. tostring(err))
     elseif content == "" then
@@ -164,7 +181,7 @@ function M.execute(name, args, io, cb)
       cb(content)
     end
   elseif name == "write_file" then
-    local ok, err = io.writeFile(M.resolvePath(args.path, io), args.content)
+    local ok, err = io.writeFile(M.subject(name, args, io), args.content)
     if ok then
       cb("wrote " .. #args.content .. " bytes to " .. args.path)
     else

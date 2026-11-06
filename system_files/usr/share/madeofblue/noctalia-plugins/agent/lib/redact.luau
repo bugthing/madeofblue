@@ -56,6 +56,62 @@ local FLAG_PATTERNS = {
   { rule = "credential file", pattern = "credential" },
 }
 
+-- Collapses "//" and "/./" so spelling variants of a path still match.
+local function collapseSlashes(s)
+  s = string.gsub(s, "/+", "/")
+  local n
+  repeat
+    s, n = string.gsub(s, "/%./", "/")
+  until n == 0
+  return s
+end
+
+local BEFORE_COMPONENT = { [""] = true, [" "] = true, ["\t"] = true, ["/"] = true, ["'"] = true, ['"'] = true, ["="] = true }
+local AFTER_COMPONENT = { [""] = true, [" "] = true, ["\t"] = true, ["/"] = true, ["'"] = true, ['"'] = true, [";"] = true }
+
+-- True when name appears in text as a whole path component ("agent/x", not "ssh-agent").
+local function hasComponent(text, name)
+  local i = 1
+  while true do
+    local a, b = string.find(text, name, i, true)
+    if not a then
+      return false
+    end
+    if BEFORE_COMPONENT[string.sub(text, a - 1, a - 1)] and AFTER_COMPONENT[string.sub(text, b + 1, b + 1)] then
+      return true
+    end
+    i = a + 1
+  end
+end
+
+-- True when text refers to the protected path, however spelled.
+local function touchesProtected(norm, path, home)
+  path = string.gsub(collapseSlashes(path), "/$", "")
+  if string.find(norm, path, 1, true) then
+    return true
+  end
+  local rel = nil
+  if home ~= "" and string.sub(path, 1, #home + 1) == home .. "/" then
+    rel = string.sub(path, #home + 2)
+    if string.find(norm, rel, 1, true) then
+      return true
+    end
+  end
+  local parent, leaf = string.match(path, "^(.*)/([^/]+)$")
+  if not parent or parent == "" then
+    return false
+  end
+  -- The last two components, e.g. "state/agent" after "cd ~/.local".
+  local parentLeaf = string.match(parent, "([^/]+)$")
+  if parentLeaf and string.find(norm, parentLeaf .. "/" .. leaf, 1, true) then
+    return true
+  end
+  -- The parent directory and the leaf separately, e.g. "cd ~/.local/state && cat agent/x".
+  local parentRel = home ~= "" and string.sub(parent, 1, #home + 1) == home .. "/" and string.sub(parent, #home + 2) or nil
+  local mentionsParent = string.find(norm, parent, 1, true) or (parentRel and string.find(norm, parentRel, 1, true))
+  return mentionsParent ~= nil and hasComponent(norm, leaf)
+end
+
 -- Checks a command string or path. Returns nil, or { level = "block" | "flag", rule = string }.
 -- opts.home: the user's home directory; opts.protected: absolute paths that must never be touched.
 function M.checkSubject(text, opts)
@@ -67,14 +123,10 @@ function M.checkSubject(text, opts)
     norm = replacePlain(norm, "$HOME", home)
     norm = replacePlain(norm, "~/", home .. "/")
   end
+  norm = collapseSlashes(norm)
   for _, path in ipairs(opts.protected or {}) do
-    if string.find(norm, path, 1, true) then
+    if touchesProtected(norm, path, home) then
       return { level = "block", rule = "agent settings" }
-    end
-    if home ~= "" and string.sub(path, 1, #home + 1) == home .. "/" then
-      if string.find(norm, string.sub(path, #home + 2), 1, true) then
-        return { level = "block", rule = "agent settings" }
-      end
     end
   end
   local lower = string.lower(norm)

@@ -260,7 +260,7 @@ function Agent:beginBatch(calls)
       local view = d.tools.describe(c.name, args)
       item.glyph, item.title, item.body = view.glyph, view.title, view.body
       item.canTerminal = c.name == "run_command"
-      local hit = d.redact.checkSubject(d.tools.subject(c.name, args), { home = d.home, protected = d.protected })
+      local hit = d.redact.checkSubject(d.tools.subject(c.name, args, d.io), { home = d.home, protected = d.protected })
       if hit and hit.level == "block" then
         item.state = "refused"
         item.rule = hit.rule
