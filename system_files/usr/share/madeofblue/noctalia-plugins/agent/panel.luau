@@ -44,6 +44,7 @@ local form = { providerIndex = 0, host = "", model = "", token = "", rev = 0, er
 local draft = ""
 local composerRev = 0
 local scrollRev = 0
+local lastStatus = "idle" -- agent status at the previous change
 local expanded = {} -- item id -> "what was sent" shown
 local fullShown = {} -- item id -> full output shown on a review card
 
@@ -78,6 +79,7 @@ local function loadConfig()
 end
 
 local function makeAgent()
+  lastStatus = "idle"
   agent = Agent.new({
     provider = PROVIDERS[config.provider],
     tools = Tools,
@@ -97,7 +99,12 @@ local function makeAgent()
     transport = function(req, onLine, onClose)
       return noctalia.httpStream(req, onLine, onClose)
     end,
-    onChange = function()
+    onChange = function(a)
+      -- Back to idle: re-create the composer (it was disabled) so it takes focus.
+      if lastStatus ~= "idle" and a.status == "idle" then
+        composerRev += 1
+      end
+      lastStatus = a.status
       render()
       publishStatus()
     end,
@@ -451,6 +458,7 @@ end
 local function newChat()
   agent:newChat()
   expanded, fullShown = {}, {}
+  draft = ""
   composerRev += 1
   render()
   publishStatus()
@@ -496,6 +504,7 @@ local function renderChat()
   local idle = agent.status == "idle"
   table.insert(footer, ui.input({
     key = "composer-" .. composerRev,
+    value = draft, -- seeds a re-created composer, so unsent text survives close/open
     multiline = true,
     submitOnEnter = true,
     height = 76,
