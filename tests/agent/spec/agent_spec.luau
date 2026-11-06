@@ -3,6 +3,7 @@ local T = require("../support/t")
 local json = require("../support/json")
 local Agent = require("../../../system_files/usr/share/madeofblue/noctalia-plugins/agent/lib/agent")
 local OpenAI = require("../../../system_files/usr/share/madeofblue/noctalia-plugins/agent/lib/providers/openai")
+local Anthropic = require("../../../system_files/usr/share/madeofblue/noctalia-plugins/agent/lib/providers/anthropic")
 local Tools = require("../../../system_files/usr/share/madeofblue/noctalia-plugins/agent/lib/tools")
 local Redact = require("../../../system_files/usr/share/madeofblue/noctalia-plugins/agent/lib/redact")
 
@@ -18,7 +19,7 @@ local function call(id, name, args)
   return sse({ choices = { { delta = { tool_calls = { { index = 0, id = id, ["function"] = { name = name, arguments = args } } } } } } })
 end
 
-local function setup()
+local function setup(provider)
   local h = { requests = {}, runs = {} }
   local io = {
     home = "/home/u",
@@ -37,7 +38,7 @@ local function setup()
     end,
   }
   h.agent = Agent.new({
-    provider = OpenAI,
+    provider = provider or OpenAI,
     tools = Tools,
     redact = Redact,
     json = json,
@@ -286,6 +287,85 @@ T.describe("agent", function()
     T.notContains(h.requests[1].req.body, TOKEN)
     T.contains(h.requests[1].req.body, "[REDACTED:agent-token]")
     T.contains(table.concat(h.requests[1].req.headers, "\n"), "Bearer " .. TOKEN, "headers keep the token")
+  end)
+
+  T.it("runs a tool round trip through the Anthropic adapter", function()
+    local h = setup(Anthropic)
+    h.agent:send("what windows are open?")
+    T.contains(h.requests[1].req.url, "/v1/messages")
+    h.reply({
+      "event: message_start",
+      sse({ type = "message_start", message = { id = "msg_1", role = "assistant" } }),
+      "event: content_block_start",
+      sse({ type = "content_block_start", index = 0, content_block = { type = "text", text = "" } }),
+      sse({ type = "content_block_delta", index = 0, delta = { type = "text_delta", text = "Checking." } }),
+      sse({ type = "content_block_stop", index = 0 }),
+      sse({ type = "content_block_start", index = 1, content_block = { type = "tool_use", id = "toolu_1", name = "run_command", input = {} } }),
+      sse({ type = "content_block_delta", index = 1, delta = { type = "input_json_delta", partial_json = '{"command":' } }),
+      sse({ type = "content_block_delta", index = 1, delta = { type = "input_json_delta", partial_json = '"niri msg -j windows"}' } }),
+      sse({ type = "content_block_stop", index = 1 }),
+      sse({ type = "message_delta", delta = { stop_reason = "tool_use" } }),
+      sse({ type = "message_stop" }),
+    })
+    local item = h.lastTool()
+    T.eq(item.state, "pending")
+    T.eq(item.args.command, "niri msg -j windows")
+    h.agent:approve(item.id)
+    h.runs[1].cb({ exitCode = 0, stdout = "[]", stderr = "" })
+    T.eq(#h.requests, 2)
+    local msgs = h.body().messages
+    T.eq(#msgs, 3)
+    T.eq(msgs[2].role, "assistant")
+    T.eq(msgs[2].content[1].text, "Checking.")
+    T.eq(msgs[2].content[2].type, "tool_use")
+    T.eq(msgs[2].content[2].id, "toolu_1")
+    T.eq(msgs[2].content[2].input.command, "niri msg -j windows")
+    T.eq(msgs[3].role, "user")
+    T.eq(msgs[3].content[1].type, "tool_result")
+    T.eq(msgs[3].content[1].tool_use_id, "toolu_1")
+    T.contains(msgs[3].content[1].content, "exit code: 0")
+    h.reply({
+      sse({ type = "content_block_start", index = 0, content_block = { type = "text", text = "" } }),
+      sse({ type = "content_block_delta", index = 0, delta = { type = "text_delta", text = "None." } }),
+      sse({ type = "message_delta", delta = { stop_reason = "end_turn" } }),
+    })
+    T.eq(h.agent.status, "idle")
+    T.eq(h.lastItem().text, "None.")
+  end)
+
+  T.it("returns a mixed batch's results in call order", function()
+    local h = setup()
+    h.agent:send("go")
+    h.reply({ sse({ choices = { { delta = { tool_calls = {
+      { index = 0, id = "c1", ["function"] = { name = "run_command", arguments = '{"command":"uptime"}' } },
+      { index = 1, id = "c2", ["function"] = { name = "run_command", arguments = '{"command":"rm -rf ~/tmp"}' } },
+      { index = 2, id = "c3", ["function"] = { name = "read_file", arguments = '{"path":"/etc/shadow"}' } },
+    } } } } }) })
+    local items = {}
+    for _, it in ipairs(h.agent.items) do
+      if it.kind == "tool" then
+        table.insert(items, it)
+      end
+    end
+    T.eq(#items, 3)
+    T.eq(items[3].state, "refused")
+    h.agent:skip(items[2].id)
+    T.eq(#h.requests, 1, "waits for the approved call")
+    h.agent:approve(items[1].id)
+    h.runs[1].cb({ exitCode = 0, stdout = "up 1 day", stderr = "" })
+    T.eq(#h.requests, 2)
+    local results = h.agent.history[#h.agent.history].results
+    T.eq(#results, 3)
+    T.eq(results[1].id, "c1")
+    T.contains(results[1].content, "up 1 day")
+    T.eq(results[2].id, "c2")
+    T.contains(results[2].content, "declined")
+    T.eq(results[3].id, "c3")
+    T.contains(results[3].content, "refused")
+    local msgs = h.body().messages
+    T.eq(msgs[4].tool_call_id, "c1")
+    T.eq(msgs[5].tool_call_id, "c2")
+    T.eq(msgs[6].tool_call_id, "c3")
   end)
 
   T.it("gives up after repeated invalid tool calls", function()
