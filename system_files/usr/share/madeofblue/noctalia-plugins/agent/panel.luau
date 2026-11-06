@@ -481,7 +481,13 @@ local function renderChat()
   local header = ui.row({ gap = 8, align = "center" }, {
     ui.glyph({ name = "robot", size = 18, color = "primary" }),
     ui.label({ text = "Agent", fontWeight = "bold" }),
-    ui.label({ text = Config.destination(config) .. " · " .. config.model, fontSize = 12, color = local_ and "primary" or "tertiary" }),
+    ui.label({
+      text = Config.destination(config) .. " · " .. config.model,
+      fontSize = 12,
+      color = local_ and "primary" or "tertiary",
+      maxWidth = 260, -- leaves room for the title and the three header buttons
+      maxLines = 1,
+    }),
     ui.spacer({ flexGrow = 1 }),
     ui.button({ glyph = "plus", variant = "ghost", tooltip = "New chat", onClick = newChat }),
     ui.button({ glyph = "settings", variant = "ghost", tooltip = "Settings", onClick = function()
