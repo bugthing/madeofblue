@@ -55,6 +55,29 @@ T.describe("openai adapter", function()
     T.eq(json.decode(call.argsJson).path, "/x")
   end)
 
+  T.it("keeps calls apart when the provider sends no index", function()
+    local st = OpenAI.newStream(json)
+    OpenAI.applyEvent(st, { choices = { { delta = { tool_calls = {
+      { id = "a", ["function"] = { name = "read_file", arguments = '{"path":"/x"}' } },
+      { id = "b", ["function"] = { name = "read_file", arguments = '{"path":"/y"}' } },
+    } } } } })
+    local calls = OpenAI.finish(st).toolCalls
+    T.eq(#calls, 2)
+    T.eq(calls[1].id, "a")
+    T.eq(calls[1].argsJson, '{"path":"/x"}')
+    T.eq(calls[2].id, "b")
+    T.eq(calls[2].argsJson, '{"path":"/y"}')
+  end)
+
+  T.it("appends id-less, index-less fragments to the latest call", function()
+    local st = OpenAI.newStream(json)
+    OpenAI.applyEvent(st, { choices = { { delta = { tool_calls = { { id = "a", ["function"] = { name = "run_command", arguments = '{"comm' } } } } } } })
+    OpenAI.applyEvent(st, { choices = { { delta = { tool_calls = { { ["function"] = { arguments = 'and":"ls"}' } } } } } } })
+    local calls = OpenAI.finish(st).toolCalls
+    T.eq(#calls, 1)
+    T.eq(calls[1].argsJson, '{"command":"ls"}')
+  end)
+
   T.it("records in-stream errors", function()
     local st = OpenAI.newStream(json)
     OpenAI.applyEvent(st, { error = { message = "overloaded" } })

@@ -57,7 +57,7 @@ function M.testRequest(cfg, json)
 end
 
 function M.newStream(json)
-  return { json = json, text = "", calls = {}, order = {}, error = nil }
+  return { json = json, text = "", calls = {}, order = {}, keyById = {}, last = nil, error = nil }
 end
 
 function M.applyEvent(st, ev)
@@ -77,15 +77,27 @@ function M.applyEvent(st, ev)
     st.text ..= delta.content
   end
   for _, tc in ipairs(delta.tool_calls or {}) do
-    local idx = tc.index or 0
+    local hasId = type(tc.id) == "string" and tc.id ~= ""
+    local idx = tc.index
+    if idx == nil then
+      -- Some servers omit index; then a new id means a new call, and a
+      -- fragment without one continues the latest call.
+      if hasId then
+        idx = st.keyById[tc.id] or tc.id
+      else
+        idx = st.last or 0
+      end
+    end
+    st.last = idx
     local call = st.calls[idx]
     if not call then
       call = { id = "", name = "", argsJson = "" }
       st.calls[idx] = call
       table.insert(st.order, idx)
     end
-    if type(tc.id) == "string" and tc.id ~= "" then
+    if hasId then
       call.id = tc.id
+      st.keyById[tc.id] = idx
     end
     local fn = tc["function"]
     if fn then
