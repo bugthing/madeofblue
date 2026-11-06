@@ -32,7 +32,7 @@ function M.toWire(history, json)
       push("user", { { type = "text", text = m.text } })
     elseif m.role == "assistant" then
       local blocks = {}
-      if m.text ~= "" then
+      if string.find(m.text, "%S") then -- the API rejects whitespace-only text blocks
         table.insert(blocks, { type = "text", text = m.text })
       end
       for _, c in ipairs(m.toolCalls or {}) do

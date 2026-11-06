@@ -31,6 +31,19 @@ T.describe("anthropic adapter", function()
     T.eq(body.messages[3].content[2].text, "thanks")
   end)
 
+  T.it("drops whitespace-only assistant text, which the API rejects", function()
+    local history = {
+      { role = "user", text = "hi" },
+      { role = "assistant", text = "\n ", toolCalls = { { id = "t1", name = "read_file", argsJson = '{"path":"/x"}' } } },
+      { role = "tool_results", results = { { id = "t1", name = "read_file", content = "ok" } } },
+      { role = "assistant", text = "  ", toolCalls = {} },
+    }
+    local msgs = Anthropic.toWire(history, json)
+    T.eq(#msgs[2].content, 1)
+    T.eq(msgs[2].content[1].type, "tool_use")
+    T.eq(msgs[4].content[1].text, "(no reply)")
+  end)
+
   T.it("assembles streamed text and tool calls", function()
     local st = Anthropic.newStream(json)
     Anthropic.applyEvent(st, { type = "message_start" })
