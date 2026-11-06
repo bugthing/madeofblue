@@ -317,3 +317,8 @@ format:
     fi
     # Run shfmt on all Bash scripts
     /usr/bin/find . -iname "*.sh" -type f -exec shfmt --write "{}" ';'
+
+# Run the agent plugin's Luau unit tests
+[group('Test')]
+test-agent:
+    luau tests/agent/run.luau
