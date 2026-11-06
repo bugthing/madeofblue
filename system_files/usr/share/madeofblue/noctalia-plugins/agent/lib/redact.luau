@@ -165,13 +165,19 @@ local TOKEN_RULES = {
   { kind = "jwt", pattern = "%f[%w%-_]eyJ[%w%-_]+%.eyJ[%w%-_]+%.[%w%-_]+" },
 }
 
+-- Matched anywhere in the key, except TOKEN (see isSecretKey).
 local SECRET_KEY_WORDS = {
-  "TOKEN", "SECRET", "PASSWORD", "PASSWD", "API_KEY", "API-KEY", "APIKEY", "PRIVATE",
+  "SECRET", "PASSWORD", "PASSWD", "API_KEY", "API-KEY", "APIKEY", "PRIVATE",
   "KEY_DATA", "KEY-DATA", "CLIENT_KEY", "CLIENT-KEY", -- kubeconfig client-key-data
 }
 
 local function isSecretKey(key)
-  local upper = string.upper(key)
+  local upper = string.upper((string.gsub(key, '"', "")))
+  -- Only a trailing TOKEN: GITHUB_TOKEN, access_token, x-auth-token, but
+  -- not max_tokens, token_type or tokenizer.
+  if string.sub(upper, -5) == "TOKEN" then
+    return true
+  end
   for _, word in ipairs(SECRET_KEY_WORDS) do
     if string.find(upper, word, 1, true) then
       return true
@@ -180,11 +186,9 @@ local function isSecretKey(key)
   return false
 end
 
--- Empty, already redacted, or purely numeric (max_tokens: 4096) values stay.
+-- Empty or already redacted values stay.
 local function keepValue(value)
-  return string.match(value, "^[\"'%s,]*$") ~= nil
-    or string.sub(value, 1, 9) == "[REDACTED"
-    or string.match(value, "^%s*%d+[,]?%s*$") ~= nil
+  return string.match(value, "^[\"'%s,]*$") ~= nil or string.sub(value, 1, 9) == "[REDACTED"
 end
 
 local function scrubAssignment(line, mark)

@@ -125,11 +125,20 @@ T.describe("redact.scrub", function()
     T.eq(out, "AUTHORIZATION: [REDACTED:auth-header]\nauthorization: [REDACTED:auth-header]")
   end)
 
-  T.it("keeps purely numeric values of token-named keys", function()
-    local text = 'max_tokens: 4096\nMAX_TOKENS=4096\n  "max_tokens": 4096,'
+  T.it("treats a key as a token only when it ends in token", function()
+    local text = 'max_tokens: 4096\nMAX_TOKENS=4096\n  "max_tokens": 4096,\n{"token_type":"Bearer","tokenizer":"cl100k_base","max_tokens":4096}'
     local out, kinds = scrub(text)
     T.eq(out, text)
     T.eq(kinds, "")
+    out = scrub('GITHUB_TOKEN=abc\ntoken: abc\nx-auth-token: abc\n{"access_token":"a","refresh_token":"b","Token":"c"}')
+    T.eq(out, 'GITHUB_TOKEN=[REDACTED:secret-value]\ntoken: [REDACTED:secret-value]\nx-auth-token: [REDACTED:secret-value]\n'
+      .. '{"access_token":"[REDACTED:secret-value]","refresh_token":"[REDACTED:secret-value]","Token":"[REDACTED:secret-value]"}')
+  end)
+
+  T.it("redacts numeric passwords", function()
+    T.eq(scrub("PASSWORD=123456\nDB_PASSWORD: 1234"), "PASSWORD=[REDACTED:secret-value]\nDB_PASSWORD: [REDACTED:secret-value]")
+    T.eq(scrub('{"password": 123456}'), '{"password": [REDACTED:secret-value]}')
+    T.eq(scrub('{"id":1,"password":123456,"user":"x"}'), '{"id":1,"password":[REDACTED:secret-value],"user":"x"}')
   end)
 
   T.it("removes secret values in YAML list items", function()
