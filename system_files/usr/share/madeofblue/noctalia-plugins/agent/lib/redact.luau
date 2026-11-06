@@ -162,7 +162,7 @@ local TOKEN_RULES = {
   { kind = "aws-key", pattern = "%f[%w]AKIA[%u%d]+", min = 20 },
   { kind = "slack-token", pattern = "%f[%w]xox[abprs]%-[%w%-]+", min = 15 },
   { kind = "gitlab-token", pattern = "%f[%w]glpat%-[%w%-_]+", min = 20 },
-  { kind = "jwt", pattern = "eyJ[%w%-_]+%.eyJ[%w%-_]+%.[%w%-_]+" },
+  { kind = "jwt", pattern = "%f[%w%-_]eyJ[%w%-_]+%.eyJ[%w%-_]+%.[%w%-_]+" },
 }
 
 local SECRET_KEY_WORDS = {
@@ -245,7 +245,9 @@ function M.scrub(text, literals)
     end
     return prefix .. mark("bearer-token")
   end)
-  text = string.gsub(text, "(%a[%w+.-]*://)([^/%s:@]+):([^/%s@]+)@", function(scheme)
+  -- The frontier makes each run of scheme characters a single match attempt;
+  -- without it the scan is quadratic on long words.
+  text = string.gsub(text, "%f[%w+.-](%a[%w+.-]*://)([^/%s:@]+):([^/%s@]+)@", function(scheme)
     return scheme .. mark("url-credentials") .. "@"
   end)
   text = string.gsub(text, "[^\n]+", function(line)

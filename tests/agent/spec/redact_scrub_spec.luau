@@ -124,6 +124,18 @@ T.describe("redact.scrub", function()
     T.eq(out, "users:\n  - password: [REDACTED:secret-value]\n  - name: bob")
   end)
 
+  T.it("scrubs long unbroken runs in linear time", function()
+    -- A quadratic pattern took ~20 s on 64 KB of one word, on the UI thread.
+    for _, s in ipairs({ string.rep("m", 65536), string.rep("a.", 32768), string.rep("eyJ", 21845) }) do
+      local started = os.clock()
+      local out = scrub(s)
+      T.eq(out, s)
+      T.truthy(os.clock() - started < 1, "took " .. (os.clock() - started) .. "s on " .. string.sub(s, 1, 3))
+    end
+    T.contains(scrub("x https://bob:pa55@example.com"), "https://[REDACTED:url-credentials]@")
+    T.contains(scrub("git+ssh://bob:pa55@example.com"), "git+ssh://[REDACTED:url-credentials]@")
+  end)
+
   T.it("scrubLiterals only removes the given values", function()
     T.eq(Redact.scrubLiterals("GITHUB_TOKEN=abc mytok123", { "mytok123" }), "GITHUB_TOKEN=abc [REDACTED:agent-token]")
   end)
