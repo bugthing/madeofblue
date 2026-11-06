@@ -162,6 +162,10 @@ local function save()
       -- Some providers echo the request back; never show the token.
       form.error = "Test request failed. "
         .. Redact.scrubLiterals(Agent.errorMessage(status, res.body or "", noctalia.json), { cfg.token })
+      if Config.isLoopback(cfg.host) then
+        -- The test request times out after 30 s; a local model may still be loading.
+        form.error ..= " A local model may still be loading; try again in a moment."
+      end
       render()
       return
     end
@@ -199,7 +203,7 @@ end
 local MONO_WIDTH = 480
 local RENDER_LINE_CAP = 500
 local CHUNK_COLS = 40
-local CHUNK_ROWS = 300
+local CHUNK_ROWS = 200 -- keeps word-wrapped text under the 500-line cap at larger font scales
 
 -- Display cells of a byte at the start of a character: tabs count 8, ASCII 1,
 -- other characters 2 (wide scripts); UTF-8 continuation bytes count 0.
@@ -223,6 +227,7 @@ local function textChunks(s)
       cur, rows = {}, 0
     end
   end
+  s = string.gsub(s, "\r\n", "\n")
   for line in string.gmatch(s .. "\n", "(.-)\n") do
     local n = 0
     for i = 1, #line do
@@ -366,6 +371,10 @@ local function toolCard(item)
         onClick = function()
           if noctalia.runInTerminal(item.args.command) then
             agent:handOff(item.id)
+            -- An attached panel holds the keyboard exclusively on Niri, so
+            -- the new terminal could not be typed into while it stays open.
+            -- The runtime and chat persist across close.
+            panel.close()
           else
             noctalia.notifyError("Could not open a terminal", "Set $TERMINAL or install a terminal emulator. The command was not run.")
           end
