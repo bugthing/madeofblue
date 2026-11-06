@@ -46,6 +46,12 @@ COPY system_files /
 ## Fail the build if the agent plugin did not land where agent.toml expects it.
 RUN test -f /usr/share/madeofblue/noctalia-plugins/agent/plugin.toml
 
+## Rebuild the initramfs so the boot splash (Plymouth) picks up the MadeOfBlue
+## logo from system_files.
+RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=tmpfs,dst=/tmp \
+    /ctx/initramfs.sh
+
 ### LINTING
 ## Verify final image and contents are correct.
 RUN bootc container lint
