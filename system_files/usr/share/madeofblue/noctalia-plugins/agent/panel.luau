@@ -44,7 +44,8 @@ local form = { providerIndex = 0, host = "", model = "", token = "", rev = 0, er
 local draft = ""
 local composerRev = 0
 local scrollRev = 0
-local expanded = {}
+local expanded = {} -- item id -> "what was sent" shown
+local fullShown = {} -- item id -> full output shown on a review card
 
 local render -- forward declaration
 
@@ -171,10 +172,78 @@ local function save()
   end
 end
 
-local function codeBlock(s)
-  -- Never shortened: the user must see everything they approve or review.
-  s = string.gsub(s or "", "~~~~", "~ ~ ~ ~")
-  return "~~~~\n" .. s .. "\n~~~~"
+-- Tool text (what the user approves, reviews or sent) is shown verbatim in
+-- plain monospace labels, never shortened. Noctalia's text renderer caps a
+-- wrapped label at 500 lines and ellipsizes the rest (kHardMaxLines in
+-- cairo_text_renderer.cpp), so the text is split across labels that each stay
+-- well under that cap. The column budget is conservative (about 57 monospace
+-- columns fit at 14px in MONO_WIDTH), leaving room for word wrapping and a
+-- larger font scale.
+local MONO_WIDTH = 480
+local RENDER_LINE_CAP = 500
+local CHUNK_COLS = 40
+local CHUNK_ROWS = 300
+
+-- Display cells of a byte at the start of a character: tabs count 8, ASCII 1,
+-- other characters 2 (wide scripts); UTF-8 continuation bytes count 0.
+local function byteCells(b)
+  if b == 9 then
+    return 8
+  elseif b < 0x80 then
+    return 1
+  elseif b >= 0xC0 then
+    return 2
+  end
+  return 0
+end
+
+local function textChunks(s)
+  local out, cur, rows = {}, {}, 0
+  local maxCells = CHUNK_ROWS * CHUNK_COLS
+  local function flush()
+    if #cur > 0 then
+      table.insert(out, table.concat(cur, "\n"))
+      cur, rows = {}, 0
+    end
+  end
+  for line in string.gmatch(s .. "\n", "(.-)\n") do
+    local n = 0
+    for i = 1, #line do
+      n += byteCells(string.byte(line, i))
+    end
+    if n > maxCells then
+      -- One line too long for a label: split it at character boundaries.
+      flush()
+      local start, acc = 1, 0
+      for i = 1, #line do
+        local w = byteCells(string.byte(line, i))
+        if w > 0 and acc + w > maxCells then
+          table.insert(out, string.sub(line, start, i - 1))
+          start, acc = i, 0
+        end
+        acc += w
+      end
+      table.insert(cur, string.sub(line, start))
+      rows = math.max(1, math.ceil(acc / CHUNK_COLS))
+    else
+      local r = math.max(1, math.ceil(n / CHUNK_COLS))
+      if rows + r > CHUNK_ROWS then
+        flush()
+      end
+      table.insert(cur, line)
+      rows += r
+    end
+  end
+  flush()
+  return out
+end
+
+local function monoText(s)
+  local labels = {}
+  for i, part in ipairs(textChunks(s or "")) do
+    labels[i] = ui.label({ text = part, fontFamily = "monospace", maxWidth = MONO_WIDTH, maxLines = RENDER_LINE_CAP })
+  end
+  return ui.column({ gap = 0 }, labels)
 end
 
 local function field(label, child)
@@ -256,7 +325,7 @@ local function toolCard(item)
       ui.label({ text = item.title or item.name, fontWeight = "bold", flexGrow = 1 }),
       ui.label({ text = STATE_LABELS[item.state] or item.state, fontSize = 12, color = "on_surface_variant" }),
     }),
-    ui.markdown({ text = codeBlock(item.body) }),
+    monoText(item.body),
   }
   if item.state == "refused" then
     table.insert(rows, ui.label({ text = "Refused automatically: protected location (" .. item.rule .. ").", color = "error", maxWidth = 480 }))
@@ -285,7 +354,21 @@ local function toolCard(item)
   elseif item.state == "review" then
     local reason = #item.kinds > 0 and ("Possible secrets found: " .. table.concat(item.kinds, ", ") .. ".") or "Output from a sensitive location."
     table.insert(rows, ui.label({ text = reason .. " Choose what the model receives. Redacted version:", maxWidth = 480 }))
-    table.insert(rows, ui.markdown({ text = codeBlock(item.scrubbed) }))
+    table.insert(rows, monoText(item.scrubbed))
+    local showFull = fullShown[item.id] == true
+    table.insert(rows, ui.button({
+      text = showFull and "Hide full output" or "Show full output",
+      variant = "ghost",
+      controlSize = "sm",
+      onClick = function()
+        fullShown[item.id] = not showFull
+        render()
+      end,
+    }))
+    if showFull then
+      table.insert(rows, ui.label({ text = "Full output (what Send full sends):", maxWidth = MONO_WIDTH }))
+      table.insert(rows, monoText(item.output))
+    end
     table.insert(rows, ui.row({ gap = 8 }, {
       ui.button({ text = "Send redacted", variant = "primary", onClick = function() agent:decide(item.id, "redacted") end }),
       ui.button({ text = "Send full", variant = "destructive", onClick = function() agent:decide(item.id, "full") end }),
@@ -303,7 +386,7 @@ local function toolCard(item)
       end,
     }))
     if open then
-      table.insert(rows, ui.markdown({ text = codeBlock(item.sent) }))
+      table.insert(rows, monoText(item.sent))
     end
   end
 
@@ -364,7 +447,7 @@ end
 
 local function newChat()
   agent:newChat()
-  expanded = {}
+  expanded, fullShown = {}, {}
   composerRev += 1
   render()
   publishStatus()
