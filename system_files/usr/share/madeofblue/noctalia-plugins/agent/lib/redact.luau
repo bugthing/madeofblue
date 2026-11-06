@@ -83,6 +83,9 @@ function M.checkSubject(text, opts)
       return { level = "block", rule = r.rule }
     end
   end
+  if string.find(lower, "kubectl", 1, true) and string.find(lower, "config%s+view") and string.find(lower, "--raw", 1, true) then
+    return { level = "flag", rule = "kubeconfig" }
+  end
   for _, r in ipairs(FLAG_FRAGMENTS) do
     if string.find(lower, r.text, 1, true) then
       return { level = "flag", rule = r.rule }
@@ -110,7 +113,10 @@ local TOKEN_RULES = {
   { kind = "jwt", pattern = "eyJ[%w%-_]+%.eyJ[%w%-_]+%.[%w%-_]+" },
 }
 
-local SECRET_KEY_WORDS = { "TOKEN", "SECRET", "PASSWORD", "PASSWD", "API_KEY", "API-KEY", "APIKEY", "PRIVATE" }
+local SECRET_KEY_WORDS = {
+  "TOKEN", "SECRET", "PASSWORD", "PASSWD", "API_KEY", "API-KEY", "APIKEY", "PRIVATE",
+  "KEY_DATA", "KEY-DATA", "CLIENT_KEY", "CLIENT-KEY", -- kubeconfig client-key-data
+}
 
 local function isSecretKey(key)
   local upper = string.upper(key)
@@ -122,15 +128,20 @@ local function isSecretKey(key)
   return false
 end
 
+-- Empty, already redacted, or purely numeric (max_tokens: 4096) values stay.
+local function keepValue(value)
+  return string.match(value, "^[\"'%s,]*$") ~= nil
+    or string.sub(value, 1, 9) == "[REDACTED"
+    or string.match(value, "^%s*%d+[,]?%s*$") ~= nil
+end
+
 local function scrubAssignment(line, mark)
   local prefix, key, sep, value = string.match(line, "^(%s*export%s+)([%w_]+)(=)(.*)$")
   if not prefix then
-    prefix, key, sep, value = string.match(line, '^(%s*)([%w_%.%-"]+)(%s*[=:]%s*)(.*)$')
+    -- The optional "- " allows YAML list items.
+    prefix, key, sep, value = string.match(line, '^(%s*%-?%s*)([%w_%.%-"]+)(%s*[=:]%s*)(.*)$')
   end
-  if not prefix or not isSecretKey(key) then
-    return nil
-  end
-  if string.match(value, "^[\"'%s,]*$") or string.sub(value, 1, 9) == "[REDACTED" then
+  if not prefix or not isSecretKey(key) or keepValue(value) then
     return nil
   end
   return prefix .. key .. sep .. mark("secret-value")
@@ -173,7 +184,7 @@ function M.scrub(text, literals)
     end)
   end
 
-  text = string.gsub(text, "([Aa]uthorization%s*:%s*)[^\r\n]+", function(prefix)
+  text = string.gsub(text, "([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]%s*:%s*)[^\r\n]+", function(prefix)
     return prefix .. mark("auth-header")
   end)
   text = string.gsub(text, "([Bb]earer%s+)([%w%-%._~%+/=]+)", function(prefix, token)
@@ -187,6 +198,13 @@ function M.scrub(text, literals)
   end)
   text = string.gsub(text, "[^\n]+", function(line)
     return scrubAssignment(line, mark)
+  end)
+  -- "key": "value" pairs anywhere in a line, e.g. one-line JSON responses.
+  text = string.gsub(text, '("([%w_%.%-]+)"%s*:%s*)"([^"\n]*)"', function(prefix, key, value)
+    if not isSecretKey(key) or keepValue(value) then
+      return nil
+    end
+    return prefix .. '"' .. mark("secret-value") .. '"'
   end)
 
   local kinds = {}

@@ -94,6 +94,36 @@ T.describe("redact.scrub", function()
     T.contains(out, "HOME=/home/u")
   end)
 
+  T.it("removes kubeconfig client keys", function()
+    local out, kinds = scrub("users:\n- name: admin\n  user:\n    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQ\n    client_key: /x/y.key")
+    T.contains(out, "    client-key-data: [REDACTED:secret-value]")
+    T.contains(out, "    client_key: [REDACTED:secret-value]")
+    T.notContains(out, "LS0t")
+    T.eq(kinds, "secret-value")
+  end)
+
+  T.it("removes secret values inside inline JSON", function()
+    local out = scrub('{"access_token":"ya29abc","expires_in":3599,"refresh_token": "1//0gabc"}')
+    T.eq(out, '{"access_token":"[REDACTED:secret-value]","expires_in":3599,"refresh_token": "[REDACTED:secret-value]"}')
+  end)
+
+  T.it("matches auth headers in any case", function()
+    local out = scrub("AUTHORIZATION: Basic dXNlcjpwYXNz\nauthorization: token abc")
+    T.eq(out, "AUTHORIZATION: [REDACTED:auth-header]\nauthorization: [REDACTED:auth-header]")
+  end)
+
+  T.it("keeps purely numeric values of token-named keys", function()
+    local text = 'max_tokens: 4096\nMAX_TOKENS=4096\n  "max_tokens": 4096,'
+    local out, kinds = scrub(text)
+    T.eq(out, text)
+    T.eq(kinds, "")
+  end)
+
+  T.it("removes secret values in YAML list items", function()
+    local out = scrub("users:\n  - password: hunter2\n  - name: bob")
+    T.eq(out, "users:\n  - password: [REDACTED:secret-value]\n  - name: bob")
+  end)
+
   T.it("scrubLiterals only removes the given values", function()
     T.eq(Redact.scrubLiterals("GITHUB_TOKEN=abc mytok123", { "mytok123" }), "GITHUB_TOKEN=abc [REDACTED:agent-token]")
   end)

@@ -37,6 +37,13 @@ T.describe("redact.checkSubject", function()
     T.eq(check("ls ~/.mozilla/firefox").rule, "browser profile")
   end)
 
+  T.it("flags raw kubeconfig dumps", function()
+    T.eq(check("kubectl config view --raw").rule, "kubeconfig")
+    T.eq(check("kubectl config view --raw").level, "flag")
+    T.eq(check("kubectl --context prod config view --minify --raw -o yaml").rule, "kubeconfig")
+    T.eq(check("kubectl config view"), nil)
+  end)
+
   T.it("flags secret-looking file names", function()
     T.eq(check("cat project/.env.local").rule, "environment file")
     T.eq(check("cat server.key").rule, "private key file")
