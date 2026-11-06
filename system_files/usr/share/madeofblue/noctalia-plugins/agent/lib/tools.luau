@@ -9,7 +9,6 @@ local M = {}
 M.TIMEOUT_SECONDS = 120
 M.OUTPUT_LIMIT = 16384
 M.OUTPUT_KEEP = 8192
-local PREVIEW_LIMIT = 4000
 
 M.SCHEMAS = {
   {
@@ -95,21 +94,15 @@ function M.subject(name, args, io)
   return args.path
 end
 
-local function preview(s)
-  if #s <= PREVIEW_LIMIT then
-    return s
-  end
-  return string.sub(s, 1, PREVIEW_LIMIT) .. "\n…"
-end
-
--- Glyph, title and body text for an approval card.
+-- Glyph, title and body text for an approval card. The body is never
+-- shortened: the user must see everything they approve.
 function M.describe(name, args)
   if name == "run_command" then
     return { glyph = "terminal-2", title = "Run command", body = args.command }
   elseif name == "read_file" then
     return { glyph = "file-text", title = "Read file", body = args.path }
   end
-  return { glyph = "file-pencil", title = "Write file", body = args.path .. "\n\n" .. preview(args.content) }
+  return { glyph = "file-pencil", title = "Write file", body = args.path .. "\n\n" .. args.content }
 end
 
 function M.sanitizeUtf8(s)

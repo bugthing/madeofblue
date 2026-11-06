@@ -128,6 +128,8 @@ T.describe("tools", function()
     T.eq(view.title, "Write file")
     T.contains(view.body, "~/x")
     T.contains(view.body, "body")
+    local long = string.rep("x", 10000) .. "TAIL"
+    T.eq(Tools.describe("write_file", { path = "~/x", content = long }).body, "~/x\n\n" .. long, "the whole content is shown")
     T.eq(Tools.subject("run_command", { command = "ls" }), "ls")
     T.eq(Tools.subject("read_file", { path = "/etc/hosts" }), "/etc/hosts")
   end)
