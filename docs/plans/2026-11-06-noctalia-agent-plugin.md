@@ -22,6 +22,7 @@
 - Plugin root (in repo): `system_files/usr/share/madeofblue/noctalia-plugins/agent/` — referred to below as `$P`. `COPY system_files /` in the Containerfile installs it to `/usr/share/madeofblue/noctalia-plugins/agent/`.
 - **`lib/` modules must not call `require` or `noctalia.*`.** Dependencies (JSON, I/O, transport) are passed in. This keeps them loadable by the `luau` CLI, whose `require` resolves extension-less paths, while Noctalia's `require` demands a `.luau` suffix. Only the entry scripts (`panel.luau`, `widget.luau`) use `require("./lib/x.luau")`.
 - Tests live in `tests/agent/`, run with `just test-agent` (`luau tests/agent/run.luau`). Each spec ends with `return true` (a Luau module must return one value).
+- **Registering a spec:** where a task says "add `require("./spec/x_spec")` to the runner", add `spec("x", require("./spec/x_spec"))` before `T.report()` instead. luau's `require` returns the parse error as a string rather than throwing, so the runner's `spec()` helper fails any spec that does not return `true` (added after Task 1).
 - Noctalia API reference used throughout: `docs/user/plugins/development/*.mdx` in https://github.com/noctalia-dev/noctalia. `ui.select` indices are 0-based. `noctalia.json.decode` returns `nil, err` rather than throwing; code wraps decode in `pcall` and type-checks, which handles both the runtime and the test JSON (which throws).
 - Commit after every task. Branch: `agent-plugin-design` (already holds the design doc).
 
