@@ -19,5 +19,6 @@ spec("redact_scrub", require("./spec/redact_scrub_spec"))
 spec("tools", require("./spec/tools_spec"))
 spec("openai", require("./spec/openai_spec"))
 spec("anthropic", require("./spec/anthropic_spec"))
+spec("agent", require("./spec/agent_spec"))
 
 T.report()
