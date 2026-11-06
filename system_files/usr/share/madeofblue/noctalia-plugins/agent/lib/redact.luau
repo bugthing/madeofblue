@@ -253,10 +253,14 @@ local function scrubInlineJson(text, mark)
   return table.concat(out)
 end
 
+-- Shorter tokens are placeholders for local servers ("ollama"); removing
+-- them would rewrite ordinary words, model names included.
+local MIN_LITERAL = 12
+
 -- Removes only the given literal values (the agent's own token).
 function M.scrubLiterals(text, literals)
   for _, lit in ipairs(literals or {}) do
-    if type(lit) == "string" and #lit >= 6 then
+    if type(lit) == "string" and #lit >= MIN_LITERAL then
       text = replacePlain(text, lit, "[REDACTED:agent-token]")
     end
   end
@@ -272,7 +276,7 @@ function M.scrub(text, literals)
   end
 
   for _, lit in ipairs(literals or {}) do
-    if type(lit) == "string" and #lit >= 6 then
+    if type(lit) == "string" and #lit >= MIN_LITERAL then
       local n
       text, n = replacePlain(text, lit, "[REDACTED:agent-token]")
       if n > 0 then

@@ -402,6 +402,14 @@ T.describe("agent", function()
     T.eq(msgs[6].tool_call_id, "c3")
   end)
 
+  T.it("leaves a short placeholder token alone in request bodies", function()
+    local h = setup()
+    h.agent.deps.config.token = "ollama"
+    h.agent:send("why is ollama slow?")
+    T.contains(h.requests[1].req.body, "why is ollama slow?")
+    T.eq(#h.agent.items, 2, "no redaction notice")
+  end)
+
   T.it("gives up after repeated invalid tool calls", function()
     local h = setup()
     h.agent:send("go")

@@ -159,7 +159,16 @@ T.describe("redact.scrub", function()
   end)
 
   T.it("scrubLiterals only removes the given values", function()
-    T.eq(Redact.scrubLiterals("GITHUB_TOKEN=abc mytok123", { "mytok123" }), "GITHUB_TOKEN=abc [REDACTED:agent-token]")
+    T.eq(Redact.scrubLiterals("GITHUB_TOKEN=abc mytok1234567", { "mytok1234567" }), "GITHUB_TOKEN=abc [REDACTED:agent-token]")
+  end)
+
+  T.it("ignores literals shorter than 12 characters, which are placeholders", function()
+    T.eq(Redact.scrubLiterals("model ollama", { "ollama" }), "model ollama")
+    T.eq(Redact.scrubLiterals("x abcdefghijk", { "abcdefghijk" }), "x abcdefghijk")
+    local out, kinds = scrub("ollama list", { "ollama" })
+    T.eq(out, "ollama list")
+    T.eq(kinds, "")
+    T.eq(Redact.scrubLiterals("x abcdefghijkl", { "abcdefghijkl" }), "x [REDACTED:agent-token]")
   end)
 end)
 
