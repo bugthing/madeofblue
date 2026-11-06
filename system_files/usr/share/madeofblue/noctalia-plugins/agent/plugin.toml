@@ -1,0 +1,33 @@
+# madeofblue agent: a bar icon that opens a chat with an LLM agent which
+# proposes commands and file edits for the user to approve one at a time.
+# Logic lives in lib/ (pure, unit-tested in tests/agent); panel.luau wires it
+# to Noctalia.
+
+id = "madeofblue/agent"
+name = "Agent"
+version = "0.1.0"
+# 43: container color roles (primary_container, error_container, ...). Also
+# relies on 8 dismiss_on_outside_click, 9 UI closures, 10 keyboard_focus,
+# 21 ui.markdown/submitOnEnter, 22 require, 24 argv runAsync.
+plugin_api = 43
+author = "madeofblue"
+license = "Apache-2.0"
+icon = "robot"
+description = "Ask an LLM agent to do things on this computer. Every action needs your approval."
+tags = ["ai", "assistant", "agent"]
+dependencies = []
+
+[[widget]]
+id = "agent"
+entry = "widget.luau"
+
+[[panel]]
+id = "chat"
+entry = "panel.luau"
+width = 540
+height = 700
+placement = "attached"
+position = "auto"
+open_near_click = true
+keyboard_focus = "exclusive"
+dismiss_on_outside_click = false

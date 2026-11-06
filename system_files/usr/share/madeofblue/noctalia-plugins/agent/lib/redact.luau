@@ -1,0 +1,326 @@
+--!nonstrict
+-- Keeps secrets on the machine: sensitive-path rules for tool subjects and
+-- scrubbers for tool output. Best effort by design; the approval gate and the
+-- visible send preview are the real guarantees.
+-- Pure module: no require, no noctalia.*.
+local M = {}
+
+local function replacePlain(s, from, to)
+  if from == "" then
+    return s, 0
+  end
+  local out, i, n = {}, 1, 0
+  while true do
+    local a, b = string.find(s, from, i, true)
+    if not a then
+      break
+    end
+    table.insert(out, string.sub(s, i, a - 1))
+    table.insert(out, to)
+    i = b + 1
+    n += 1
+  end
+  table.insert(out, string.sub(s, i))
+  return table.concat(out), n
+end
+
+-- Substring rules, matched against the lower-cased subject.
+local BLOCK_FRAGMENTS = {
+  { rule = "system password hashes", text = "/etc/shadow" },
+  { rule = "system password hashes", text = "/etc/gshadow" },
+  { rule = "login keyring", text = ".local/share/keyrings" },
+}
+
+local FLAG_FRAGMENTS = {
+  { rule = "SSH keys", text = ".ssh" },
+  { rule = "GnuPG keys", text = ".gnupg" },
+  { rule = "password store", text = ".password-store" },
+  { rule = "AWS credentials", text = ".aws" },
+  { rule = "Kubernetes credentials", text = ".kube" },
+  { rule = "container registry credentials", text = ".docker/config.json" },
+  { rule = "GitHub CLI token", text = "gh/hosts.yml" },
+  { rule = "netrc credentials", text = ".netrc" },
+  { rule = "git credentials", text = ".git-credentials" },
+  { rule = "browser profile", text = ".mozilla" },
+  { rule = "browser profile", text = "google-chrome" },
+  { rule = "browser profile", text = "chromium" },
+  { rule = "browser profile", text = "bravesoftware" },
+}
+
+-- Lua patterns, matched against the lower-cased subject.
+local FLAG_PATTERNS = {
+  { rule = "environment file", pattern = "%.env" },
+  { rule = "private key file", pattern = "%.pem%f[^%w]" },
+  { rule = "private key file", pattern = "%.key%f[^%w]" },
+  { rule = "secret-named file or tool", pattern = "secret" },
+  { rule = "credential file", pattern = "credential" },
+}
+
+-- Collapses "//" and "/./" so spelling variants of a path still match.
+local function collapseSlashes(s)
+  s = string.gsub(s, "/+", "/")
+  local n
+  repeat
+    s, n = string.gsub(s, "/%./", "/")
+  until n == 0
+  return s
+end
+
+local BEFORE_COMPONENT = { [""] = true, [" "] = true, ["\t"] = true, ["/"] = true, ["'"] = true, ['"'] = true, ["="] = true }
+local AFTER_COMPONENT = { [""] = true, [" "] = true, ["\t"] = true, ["/"] = true, ["'"] = true, ['"'] = true, [";"] = true }
+
+-- True when name appears in text as a whole path component ("agent/x", not "ssh-agent").
+local function hasComponent(text, name)
+  local i = 1
+  while true do
+    local a, b = string.find(text, name, i, true)
+    if not a then
+      return false
+    end
+    if BEFORE_COMPONENT[string.sub(text, a - 1, a - 1)] and AFTER_COMPONENT[string.sub(text, b + 1, b + 1)] then
+      return true
+    end
+    i = a + 1
+  end
+end
+
+-- True when text refers to the protected path, however spelled.
+local function touchesProtected(norm, path, home)
+  path = string.gsub(collapseSlashes(path), "/$", "")
+  if string.find(norm, path, 1, true) then
+    return true
+  end
+  local rel = nil
+  if home ~= "" and string.sub(path, 1, #home + 1) == home .. "/" then
+    rel = string.sub(path, #home + 2)
+    if string.find(norm, rel, 1, true) then
+      return true
+    end
+  end
+  local parent, leaf = string.match(path, "^(.*)/([^/]+)$")
+  if not parent or parent == "" then
+    return false
+  end
+  -- The last two components, e.g. "state/agent" after "cd ~/.local".
+  local parentLeaf = string.match(parent, "([^/]+)$")
+  if parentLeaf and string.find(norm, parentLeaf .. "/" .. leaf, 1, true) then
+    return true
+  end
+  -- The parent directory and the leaf separately, e.g. "cd ~/.local/state && cat agent/x".
+  local parentRel = home ~= "" and string.sub(parent, 1, #home + 1) == home .. "/" and string.sub(parent, #home + 2) or nil
+  local mentionsParent = string.find(norm, parent, 1, true) or (parentRel and string.find(norm, parentRel, 1, true))
+  return mentionsParent ~= nil and hasComponent(norm, leaf)
+end
+
+-- Checks a command string or path. Returns nil, or { level = "block" | "flag", rule = string }.
+-- opts.home: the user's home directory; opts.protected: absolute paths that must never be touched.
+function M.checkSubject(text, opts)
+  opts = opts or {}
+  local home = opts.home or ""
+  local norm = text or ""
+  if home ~= "" then
+    norm = replacePlain(norm, "${HOME}", home)
+    norm = replacePlain(norm, "$HOME", home)
+    norm = replacePlain(norm, "~/", home .. "/")
+  end
+  norm = collapseSlashes(norm)
+  for _, path in ipairs(opts.protected or {}) do
+    if touchesProtected(norm, path, home) then
+      return { level = "block", rule = "agent settings" }
+    end
+  end
+  local lower = string.lower(norm)
+  for _, r in ipairs(BLOCK_FRAGMENTS) do
+    if string.find(lower, r.text, 1, true) then
+      return { level = "block", rule = r.rule }
+    end
+  end
+  if string.find(lower, "kubectl", 1, true) and string.find(lower, "config%s+view") and string.find(lower, "--raw", 1, true) then
+    return { level = "flag", rule = "kubeconfig" }
+  end
+  for _, r in ipairs(FLAG_FRAGMENTS) do
+    if string.find(lower, r.text, 1, true) then
+      return { level = "flag", rule = r.rule }
+    end
+  end
+  for _, r in ipairs(FLAG_PATTERNS) do
+    if string.find(lower, r.pattern) then
+      return { level = "flag", rule = r.rule }
+    end
+  end
+  return nil
+end
+
+local TOKEN_RULES = {
+  { kind = "private-key", pattern = "%-%-%-%-%-BEGIN [%w ]*PRIVATE KEY[%w ]*%-%-%-%-%-.-%-%-%-%-%-END [%w ]*PRIVATE KEY[%w ]*%-%-%-%-%-" },
+  -- No END line (cut off, or pasted partially): redact to the end of the text.
+  { kind = "private-key", pattern = "%-%-%-%-%-BEGIN [%w ]*PRIVATE KEY[%w ]*%-%-%-%-%-.*" },
+  { kind = "anthropic-key", pattern = "%f[%w]sk%-ant%-[%w%-_]+", min = 20 },
+  { kind = "api-key", pattern = "%f[%w]sk%-[%w%-_]+", min = 20 },
+  { kind = "github-token", pattern = "%f[%w]gh[pousr]_%w+", min = 20 },
+  { kind = "github-token", pattern = "%f[%w]github_pat_[%w_]+", min = 30 },
+  { kind = "aws-key", pattern = "%f[%w]AKIA[%u%d]+", min = 20 },
+  { kind = "slack-token", pattern = "%f[%w]xox[abprs]%-[%w%-]+", min = 15 },
+  { kind = "gitlab-token", pattern = "%f[%w]glpat%-[%w%-_]+", min = 20 },
+  { kind = "jwt", pattern = "%f[%w%-_]eyJ[%w%-_]+%.eyJ[%w%-_]+%.[%w%-_]+" },
+}
+
+-- Matched anywhere in the key, except TOKEN (see isSecretKey).
+local SECRET_KEY_WORDS = {
+  "SECRET", "PASSWORD", "PASSWD", "API_KEY", "API-KEY", "APIKEY", "PRIVATE",
+  "KEY_DATA", "KEY-DATA", "CLIENT_KEY", "CLIENT-KEY", -- kubeconfig client-key-data
+}
+
+local function isSecretKey(key)
+  local upper = string.upper((string.gsub(key, '"', "")))
+  -- Only a trailing TOKEN: GITHUB_TOKEN, access_token, x-auth-token, but
+  -- not max_tokens, token_type or tokenizer.
+  if string.sub(upper, -5) == "TOKEN" then
+    return true
+  end
+  for _, word in ipairs(SECRET_KEY_WORDS) do
+    if string.find(upper, word, 1, true) then
+      return true
+    end
+  end
+  return false
+end
+
+-- Empty or already redacted values stay.
+local function keepValue(value)
+  return string.match(value, "^[\"'%s,]*$") ~= nil or string.sub(value, 1, 9) == "[REDACTED"
+end
+
+local function scrubAssignment(line, mark)
+  local prefix, key, sep, value = string.match(line, "^(%s*export%s+)([%w_]+)(=)(.*)$")
+  if not prefix then
+    -- The optional "- " allows YAML list items.
+    prefix, key, sep, value = string.match(line, '^(%s*%-?%s*)([%w_%.%-"]+)(%s*[=:]%s*)(.*)$')
+  end
+  if not prefix or not isSecretKey(key) or keepValue(value) then
+    return nil
+  end
+  return prefix .. key .. sep .. mark("secret-value")
+end
+
+local JSON_LITERALS = { ["null"] = true, ["true"] = true, ["false"] = true }
+
+-- "key": value pairs anywhere in a line, e.g. one-line JSON responses.
+-- Quoted values end at the first unescaped quote; unquoted ones at , } or
+-- whitespace. Nested objects and arrays are left to the other rules.
+local function scrubInlineJson(text, mark)
+  local out, i, n = {}, 1, #text
+  while true do
+    local _, b, key = string.find(text, '"([%w_%.%-]+)"%s*:%s*', i)
+    if not b then
+      break
+    end
+    local nextChar = string.sub(text, b + 1, b + 1)
+    local valueEnd = nil -- index after the redacted value
+    if isSecretKey(key) and nextChar == '"' then
+      local j = b + 2
+      while j <= n do
+        local ch = string.sub(text, j, j)
+        if ch == "\\" then
+          j += 2
+        elseif ch == '"' or ch == "\n" then
+          break
+        else
+          j += 1
+        end
+      end
+      j = math.min(j, n + 1)
+      if not keepValue(string.sub(text, b + 2, j - 1)) then
+        table.insert(out, string.sub(text, i, b + 1))
+        valueEnd = j
+      end
+    elseif isSecretKey(key) and nextChar ~= "" and not string.find(nextChar, "[%[{]") then
+      local value = string.match(text, "^[^,}%s]+", b + 1)
+      if value and not JSON_LITERALS[value] and not keepValue(value) then
+        table.insert(out, string.sub(text, i, b))
+        valueEnd = b + 1 + #value
+      end
+    end
+    if valueEnd then
+      table.insert(out, mark("secret-value"))
+      i = valueEnd
+    else
+      table.insert(out, string.sub(text, i, b))
+      i = b + 1
+    end
+  end
+  table.insert(out, string.sub(text, i))
+  return table.concat(out)
+end
+
+-- Shorter tokens are placeholders for local servers ("ollama"); removing
+-- them would rewrite ordinary words, model names included.
+local MIN_LITERAL = 12
+
+-- Removes only the given literal values (the agent's own token).
+function M.scrubLiterals(text, literals)
+  for _, lit in ipairs(literals or {}) do
+    if type(lit) == "string" and #lit >= MIN_LITERAL then
+      text = replacePlain(text, lit, "[REDACTED:agent-token]")
+    end
+  end
+  return text
+end
+
+-- Returns the scrubbed text and a sorted list of the kinds of secret removed.
+function M.scrub(text, literals)
+  local hits = {}
+  local function mark(kind)
+    hits[kind] = true
+    return "[REDACTED:" .. kind .. "]"
+  end
+
+  for _, lit in ipairs(literals or {}) do
+    if type(lit) == "string" and #lit >= MIN_LITERAL then
+      local n
+      text, n = replacePlain(text, lit, "[REDACTED:agent-token]")
+      if n > 0 then
+        hits["agent-token"] = true
+      end
+    end
+  end
+
+  for _, r in ipairs(TOKEN_RULES) do
+    text = string.gsub(text, r.pattern, function(m)
+      if r.min and #m < r.min then
+        return nil
+      end
+      return mark(r.kind)
+    end)
+  end
+
+  text = string.gsub(text, "([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]%s*:%s*)[^\r\n]+", function(prefix)
+    return prefix .. mark("auth-header")
+  end)
+  text = string.gsub(text, "([Bb]earer%s+)([%w%-%._~%+/=]+)", function(prefix, token)
+    if #token < 8 or string.sub(token, 1, 9) == "[REDACTED" then
+      return nil
+    end
+    return prefix .. mark("bearer-token")
+  end)
+  -- The frontier makes each run of scheme characters a single match attempt;
+  -- without it the scan is quadratic on long words.
+  text = string.gsub(text, "%f[%w+.-](%a[%w+.-]*://)([^/%s:@]+):([^/%s@]+)@", function(scheme)
+    return scheme .. mark("url-credentials") .. "@"
+  end)
+  text = string.gsub(text, "[^\n]+", function(line)
+    return scrubAssignment(line, mark)
+  end)
+  text = scrubInlineJson(text, mark)
+
+  local kinds = {}
+  for kind in pairs(hits) do
+    table.insert(kinds, kind)
+  end
+  table.sort(kinds)
+  return text, kinds
+end
+
+M._replacePlain = replacePlain
+
+return M

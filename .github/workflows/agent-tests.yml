@@ -1,0 +1,48 @@
+name: Agent plugin tests
+
+on:
+  pull_request:
+    paths:
+      - "system_files/usr/share/madeofblue/noctalia-plugins/**"
+      - "system_files/etc/skel/.config/noctalia/agent.toml"
+      - "tests/agent/**"
+      - ".github/workflows/agent-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "system_files/usr/share/madeofblue/noctalia-plugins/**"
+      - "system_files/etc/skel/.config/noctalia/agent.toml"
+      - "tests/agent/**"
+      - ".github/workflows/agent-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Luau
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/luau.zip" https://github.com/luau-lang/luau/releases/download/0.745/luau-ubuntu.zip
+          unzip -q "$RUNNER_TEMP/luau.zip" -d "$RUNNER_TEMP/luau"
+          echo "$RUNNER_TEMP/luau" >> "$GITHUB_PATH"
+
+      - name: Run unit tests
+        run: luau tests/agent/run.luau
+
+      - name: Validate TOML
+        run: |
+          python3 - <<'EOF'
+          import tomllib
+          for path in [
+              "system_files/usr/share/madeofblue/noctalia-plugins/agent/plugin.toml",
+              "system_files/etc/skel/.config/noctalia/agent.toml",
+          ]:
+              with open(path, "rb") as f:
+                  tomllib.load(f)
+              print("ok", path)
+          EOF

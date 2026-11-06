@@ -52,6 +52,7 @@ binds {
     // Apps / launcher
     Mod+Return { spawn "foot"; }
     Mod+D { spawn "fuzzel"; }
+    Mod+A { spawn "noctalia" "msg" "panel-toggle" "madeofblue/agent:chat"; }
 
     // Window management
     Mod+Q { close-window; }
