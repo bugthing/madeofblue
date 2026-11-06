@@ -1,0 +1,12 @@
+# Browsers installed from Flathub on first boot by flatpak-preinstall.service.
+# Flatpak remembers what it preinstalled: removing an app here uninstalls it
+# from every system on its next update, and an app a user uninstalls is not
+# put back.
+
+[Flatpak Preinstall org.mozilla.firefox]
+Branch=stable
+IsRuntime=false
+
+[Flatpak Preinstall com.google.Chrome]
+Branch=stable
+IsRuntime=false
