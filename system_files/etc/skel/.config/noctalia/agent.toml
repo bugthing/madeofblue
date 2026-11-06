@@ -1,0 +1,20 @@
+# madeofblue agent: register the plugin shipped in the image, enable it, and
+# put its icon on the bar. Noctalia merges every *.toml in this directory.
+
+[plugins]
+enabled = ["madeofblue/agent"]
+
+[[plugins.source]]
+name = "madeofblue"
+kind = "path"
+location = "/usr/share/madeofblue/noctalia-plugins"
+enabled = true
+
+[widget.agent]
+type = "madeofblue/agent:agent"
+
+# TOML arrays replace rather than merge, so this restates Noctalia's default
+# end-of-bar widgets (src/config/config_types.h, endWidgets) with the agent
+# added before the control center.
+[bar.default]
+end = ["media", "tray", "notifications", "clipboard", "network", "bluetooth", "volume", "brightness", "battery", "agent", "control-center", "session"]
