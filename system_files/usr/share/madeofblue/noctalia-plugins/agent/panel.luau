@@ -159,7 +159,9 @@ local function save()
     form.saving = false
     local status = res.status or 0
     if not res.ok or status >= 400 then
-      form.error = "Test request failed. " .. Agent.errorMessage(status, res.body or "", noctalia.json)
+      -- Some providers echo the request back; never show the token.
+      form.error = "Test request failed. "
+        .. Redact.scrubLiterals(Agent.errorMessage(status, res.body or "", noctalia.json), { cfg.token })
       render()
       return
     end
@@ -444,7 +446,7 @@ local function messageNode(item, isLast)
       end }))
     end
     return ui.column({ key = "item-" .. item.id, gap = 8, padding = 10, radius = 10, fill = "error_container" }, {
-      ui.label({ text = item.text, color = "on_error_container", maxWidth = 480 }),
+      ui.label({ text = Redact.scrubLiterals(item.text, { config.token }), color = "on_error_container", maxWidth = 480 }),
       ui.row({ gap = 8 }, buttons),
     })
   end
