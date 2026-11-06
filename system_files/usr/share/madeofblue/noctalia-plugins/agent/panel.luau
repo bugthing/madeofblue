@@ -40,7 +40,7 @@ local view = "setup" -- "setup" | "chat"
 local config = nil
 local configNotice = nil
 local agent = nil
-local form = { providerIndex = 0, host = "", model = "", token = "", rev = 0, error = nil, saving = false }
+local form = { providerIndex = 0, host = "", model = "", token = "", rev = 0, error = nil, saving = false, saveGen = 0 }
 local draft = ""
 local composerRev = 0
 local scrollRev = 0
@@ -121,6 +121,7 @@ local function openSetup()
   form.providerIndex = current.provider == "anthropic" and 1 or 0
   form.host, form.model, form.token = current.host, current.model, current.token
   form.error, form.saving = nil, false
+  form.saveGen += 1 -- a test request still in flight belongs to an earlier visit
   form.rev += 1
 end
 
@@ -147,8 +148,14 @@ local function save()
     return
   end
   form.saving, form.error = true, nil
+  form.saveGen += 1
+  local gen = form.saveGen
   render()
   local started = noctalia.http(PROVIDERS[cfg.provider].testRequest(cfg, noctalia.json), function(res)
+    -- The user cancelled (or left and reopened setup): drop the result.
+    if gen ~= form.saveGen or view ~= "setup" then
+      return
+    end
     form.saving = false
     local status = res.status or 0
     if not res.ok or status >= 400 then
@@ -167,6 +174,7 @@ local function save()
     end
     config, configNotice = cfg, nil
     makeAgent()
+    expanded, fullShown = {}, {}
     view = "chat"
     composerRev += 1
     render()
@@ -309,6 +317,8 @@ local function renderSetup()
       text = "Cancel",
       variant = "ghost",
       onClick = function()
+        form.saving = false
+        form.saveGen += 1
         view = "chat"
         render()
       end,
@@ -534,7 +544,8 @@ render = function()
 end
 
 function onOpen(_context)
-  if config == nil then
+  local hadConfig = config ~= nil
+  if not hadConfig then
     loadConfig()
   end
   if config == nil then
@@ -545,7 +556,9 @@ function onOpen(_context)
     if agent == nil then
       makeAgent()
     end
-    if view ~= "setup" then
+    -- Stay in setup only if the user opened it over a working config;
+    -- a config that appeared since the last open shows the chat.
+    if not (view == "setup" and hadConfig) then
       view = "chat"
     end
   end
