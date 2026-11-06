@@ -2,12 +2,6 @@
 
 set -ouex pipefail
 
-# Bluefin-DX wires ccache in front of gcc/clang by default. Under buildah's
-# cache-mount overlay for /var/cache it hits a hardlink race ("ccache: error:
-# File exists") during Noctalia's parallel ninja build, so disable it for our
-# from-source compiles rather than fight the overlay semantics.
-export CCACHE_DISABLE=1
-
 ### Install packages
 
 # Wayland compositor (Niri) and the Wayland/GPU stack it needs.
@@ -30,91 +24,21 @@ dnf5 install -y \
     fuzzel \
     lxpolkit
 
-# Build tooling required to compile Noctalia and noctalia-greeter from source.
-dnf5 install -y \
-    git \
-    gcc \
-    gcc-c++ \
-    clang \
-    cmake \
-    meson \
-    ninja-build \
-    just \
-    cargo \
-    rust \
-    pkgconf-pkg-config
+### Install Noctalia and its greetd greeter
 
-# Noctalia build dependencies (see BUILDING.md in noctalia-dev/noctalia).
-dnf5 install -y \
-    wayland-devel \
-    wayland-protocols-devel \
-    libEGL-devel \
-    mesa-libGLES-devel \
-    freetype-devel \
-    fontconfig-devel \
-    cairo-devel \
-    pango-devel \
-    harfbuzz-devel \
-    libxkbcommon-devel \
-    glib2-devel \
-    libsecret-devel \
-    libsodium-devel \
-    sdbus-cpp-devel \
-    pipewire-devel \
-    wireplumber-devel \
-    pam-devel \
-    polkit-devel \
-    libcurl-devel \
-    libwebp-devel \
-    libjxl-devel \
-    libsndfile-devel \
-    librsvg2-devel \
-    libqalculate-devel \
-    libxml2-devel \
-    md4c-devel \
-    tomlplusplus-devel \
-    libical-devel \
-    json-devel \
-    stb_image_resize2-devel \
-    stb_image_write-devel \
-    jemalloc-devel
+# Noctalia itself comes from Fedora's own repos (packaged since Fedora 44).
+dnf5 install -y noctalia
 
-# noctalia-greeter build dependencies on top of the above (see its README.md).
-dnf5 install -y \
-    greetd \
-    dbus \
-    wlroots-devel
+# Fedora does not package noctalia-greeter, so take the prebuilt git snapshot
+# from the LionHeartP COPR. Enable the COPR only for this install: left on, its
+# noctalia-git package could replace Fedora's noctalia on later updates.
+dnf5 -y copr enable lionheartp/Hyprland
+dnf5 install -y greetd noctalia-greeter-git
+dnf5 -y copr disable lionheartp/Hyprland
 
-### Build and install Noctalia
-
-NOCTALIA_SRC="/tmp/noctalia-src"
-git clone --depth=1 https://github.com/noctalia-dev/noctalia.git "${NOCTALIA_SRC}"
-pushd "${NOCTALIA_SRC}"
-just configure release /usr
-just build release
-just install release
-popd
-rm -rf "${NOCTALIA_SRC}"
-
-### Build and install the Noctalia greetd greeter
-
-# The upstream Justfile's configure-release target has no prefix knob, so we
-# drive meson directly to install under /usr instead of its default /usr/local.
-# We also skip scripts/setup_greeter_system.sh: Fedora's greetd RPM already
-# provides the system user, PAM stack and unit that script exists to create on
-# distros without one; system_files/etc/greetd/config.toml does the wiring.
-NOCTALIA_GREETER_SRC="/tmp/noctalia-greeter-src"
-git clone --depth=1 https://github.com/noctalia-dev/noctalia-greeter.git "${NOCTALIA_GREETER_SRC}"
-pushd "${NOCTALIA_GREETER_SRC}"
-meson setup build-release --buildtype=release --prefix=/usr
-meson compile -C build-release
-meson install -C build-release
-popd
-rm -rf "${NOCTALIA_GREETER_SRC}"
-
-# The greeter's tmpfiles rule creates its state dir for a "greeter" account,
-# which Fedora does not have; greetd's RPM runs the greeter as "greetd".
-sed -i 's/ greeter greeter / greetd greetd /' /usr/lib/tmpfiles.d/noctalia-greeter.conf
+# The COPR package drops the greeter's tmpfiles rule, which would create its
+# state dir for a "greeter" user Fedora lacks. Our own rule, under
+# system_files/usr/lib/tmpfiles.d/, creates it for "greetd" instead.
 
 ### Brand the OS as MadeOfBlue
 

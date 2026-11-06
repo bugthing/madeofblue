@@ -8,8 +8,8 @@ This repo is derived from [ublue-os/image-template](https://github.com/ublue-os/
 
 - **Base:** Bluefin-DX, so GNOME, Homebrew (via `ublue-os/brew`, extracted into `/home/linuxbrew` on first boot), and Bluefin's dev/container tooling are all present unchanged.
 - **Compositor:** Niri (installed via `dnf5`) as an alternative session alongside GNOME, plus `swaybg`/`swayidle`/`swaylock` as fallbacks, `foot` (terminal) and `fuzzel` (app launcher).
-- **Desktop shell:** [Noctalia](https://github.com/noctalia-dev/noctalia), compiled from source in `build_files/build.sh` per its [BUILDING.md](https://github.com/noctalia-dev/noctalia/blob/main/BUILDING.md) and installed to `/usr` (binary at `/usr/bin/noctalia`, assets under `/usr/share/noctalia/`).
-- **Login screen:** Bluefin-DX's default GDM is disabled in favor of [`greetd`](https://sr.ht/~kennylevinsen/greetd/) running [Noctalia's own greeter](https://github.com/noctalia-dev/noctalia-greeter) (also compiled from source), configured via `system_files/etc/greetd/config.toml`. The greeter's session picker reads the standard `/usr/share/wayland-sessions/*.desktop` entries, so both the GNOME and Niri sessions are selectable at login.
+- **Desktop shell:** [Noctalia](https://github.com/noctalia-dev/noctalia), installed from Fedora's own `noctalia` package (binary at `/usr/bin/noctalia`, assets under `/usr/share/noctalia/`).
+- **Login screen:** Bluefin-DX's default GDM is disabled in favor of [`greetd`](https://sr.ht/~kennylevinsen/greetd/) running [Noctalia's own greeter](https://github.com/noctalia-dev/noctalia-greeter) (the prebuilt `noctalia-greeter-git` snapshot from the [LionHeartP COPR](https://copr.fedorainfracloud.org/coprs/lionheartp/Hyprland/), since Fedora does not package it), configured via `system_files/etc/greetd/config.toml`. The greeter's session picker reads the standard `/usr/share/wayland-sessions/*.desktop` entries, so both the GNOME and Niri sessions are selectable at login.
 - **Default session config:** `system_files/etc/skel/.config/niri/config.kdl` is seeded into every new user's home directory. It launches Noctalia via `spawn-at-startup`, and ships a basic keybinding set (`Mod+Return` for a terminal, `Mod+D` for the launcher, `Mod+Q` to close a window, `Mod+1..4` for workspaces, `Mod+Shift+L` to lock, etc).
 
 ## Building locally
@@ -22,7 +22,7 @@ just build madeofblue latest
 podman build -t madeofblue:latest .
 ```
 
-The `Containerfile` clones and compiles both Noctalia and its greeter during the build, on top of the already-substantial Bluefin-DX base, so expect the first build to take a while and to require network access for `dnf5` and `git clone`.
+The build installs Noctalia and its greeter as prebuilt RPMs, so nothing is compiled, but it pulls the substantial Bluefin-DX base and needs network access for `dnf5`.
 
 To boot the image locally in a VM without installing it anywhere, see the [Justfile Documentation](#justfile-documentation) section below (`just build-qcow2`, `just run-vm-qcow2`, etc.).
 
