@@ -116,6 +116,21 @@ rm -rf "${NOCTALIA_GREETER_SRC}"
 # which Fedora does not have; greetd's RPM runs the greeter as "greetd".
 sed -i 's/ greeter greeter / greetd greetd /' /usr/lib/tmpfiles.d/noctalia-greeter.conf
 
+### Brand the OS as MadeOfBlue
+
+# bootc-image-builder names the installer ISO's boot menu entries after NAME
+# in os-release ("Install Bluefin 44"), and ostree titles the installed
+# system's boot entries with PRETTY_NAME. Rename both; leave ID, ID_LIKE and
+# VERSION_ID alone so tooling that identifies the base distro keeps working.
+for f in /usr/lib/os-release /etc/os-release; do
+    sed -i --follow-symlinks -E \
+        -e 's/^NAME=.*/NAME="MadeOfBlue"/' \
+        -e '/^PRETTY_NAME=/s/Bluefin/MadeOfBlue/' \
+        "$f"
+    grep -q '^NAME="MadeOfBlue"$' "$f"
+    grep -q '^PRETTY_NAME=.*MadeOfBlue' "$f"
+done
+
 ### Enable services
 
 # Replace bluefin-dx's default GDM with greetd running the Noctalia greeter,
