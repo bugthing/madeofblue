@@ -3,5 +3,6 @@
 local T = require("./support/t")
 
 require("./spec/json_spec")
+require("./spec/config_spec")
 
 T.report()
