@@ -14,5 +14,6 @@ end
 
 spec("json", require("./spec/json_spec"))
 spec("config", require("./spec/config_spec"))
+spec("redact_paths", require("./spec/redact_paths_spec"))
 
 T.report()
