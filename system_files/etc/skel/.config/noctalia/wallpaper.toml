@@ -1,8 +1,8 @@
-# Browse Bluefin's bundled wallpapers in the picker instead of the default
+# Browse the image's wallpapers in the picker instead of the default
 # ~/Pictures, which is empty on a fresh install. Noctalia merges every
 # *.toml in this directory; choices made in the UI go to settings.toml.
 [wallpaper]
-directory = "/usr/share/backgrounds/bluefin"
+directory = "/usr/share/backgrounds/madeofblue"
 
 # MadeOfBlue's own wallpaper is the default until the user picks another.
 [wallpaper.default]

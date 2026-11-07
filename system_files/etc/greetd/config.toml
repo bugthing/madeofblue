@@ -1,8 +1,7 @@
 # Overrides the RPM-shipped default (which points at agreety, greetd's plain
 # text fallback greeter) to use the Noctalia greeter instead. It presents a
 # session picker over the standard *.desktop entries under
-# /usr/share/wayland-sessions/, so both the GNOME session (from bluefin-dx)
-# and Niri show up here.
+# /usr/share/wayland-sessions/; the image ships only the Niri session.
 #
 # The "greetd" user below is the system account Fedora's greetd RPM creates
 # via /usr/lib/sysusers.d/greetd.conf. Upstream Noctalia greeter docs default

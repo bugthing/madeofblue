@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_DESC: "Bluefin-DX with the Niri compositor and Noctalia desktop shell/greeter as an alternative session"
+  IMAGE_DESC: "Fedora Atomic (Universal Blue base-main) with the Niri compositor, Noctalia desktop shell and greeter, and Bluefin-DX's developer tooling"
   IMAGE_KEYWORDS: "bootc,ublue,universal-blue,bluefin,niri,noctalia,wayland,greetd"
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"  # Put your own image here for a fancy profile on https://artifacthub.io/!
   IMAGE_NAME: "${{ github.event.repository.name }}"  # output image name, usually same as repo name
@@ -48,7 +48,7 @@ jobs:
 
       # The runners no longer provide a /mnt disk, so container-storage-action
       # skips its BTRFS loopback and the build runs on the root disk. Free space
-      # there first, or pulling the Bluefin-DX base runs out of room.
+      # there first, or pulling the base image runs out of room.
       - name: Maximize build space
         uses: ublue-os/remove-unwanted-software@cc0becac701cf642c8f0a6613bbdaf5dc36b259e # v9
         with:
