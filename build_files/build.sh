@@ -45,13 +45,17 @@ dnf5 -y copr disable lionheartp/Hyprland
 # in os-release ("Install Bluefin 44"), and ostree titles the installed
 # system's boot entries with PRETTY_NAME. Rename both; leave ID, ID_LIKE and
 # VERSION_ID alone so tooling that identifies the base distro keeps working.
+# The image ships an empty /etc/hostname, so systemd falls back to
+# DEFAULT_HOSTNAME; make that "madeofblue" instead of "bluefin".
 for f in /usr/lib/os-release /etc/os-release; do
     sed -i --follow-symlinks -E \
         -e 's/^NAME=.*/NAME="MadeOfBlue"/' \
         -e '/^PRETTY_NAME=/s/Bluefin/MadeOfBlue/' \
+        -e 's/^DEFAULT_HOSTNAME=.*/DEFAULT_HOSTNAME="madeofblue"/' \
         "$f"
     grep -q '^NAME="MadeOfBlue"$' "$f"
     grep -q '^PRETTY_NAME=.*MadeOfBlue' "$f"
+    grep -q '^DEFAULT_HOSTNAME="madeofblue"$' "$f"
 done
 
 ### Enable services
