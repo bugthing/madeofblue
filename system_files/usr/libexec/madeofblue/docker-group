@@ -1,0 +1,19 @@
+#!/usr/bin/bash
+# Give every wheel (admin) user access to the Docker daemon, as Bluefin-DX did.
+# Runs on each boot so users created later are picked up; adding a user who is
+# already a member is a no-op.
+
+set -eu
+
+# On bootc systems the docker group can live only in the image's
+# /usr/lib/group, which usermod cannot change; copy it into /etc/group.
+if ! grep -q '^docker:' /etc/group; then
+    grep '^docker:' /usr/lib/group >>/etc/group || groupadd -r docker
+fi
+
+members=$(getent group wheel | cut -d: -f4)
+IFS=, read -ra users <<<"$members"
+for user in "${users[@]}"; do
+    [ -n "$user" ] || continue
+    id -nG "$user" | tr ' ' '\n' | grep -qx docker || usermod -aG docker "$user"
+done

@@ -1,0 +1,35 @@
+#!/usr/bin/bash
+# Start or stop the MadeOfBlue screensaver. Noctalia's idle behaviour runs
+# "start" after 2 minutes idle and "stop" on activity (see
+# /etc/skel/.config/noctalia/idle.toml). Niri opens the window fullscreen via a
+# window rule matching the app-id below.
+
+set -u
+
+APP_ID=madeofblue-screensaver
+SCENE=/usr/libexec/madeofblue/screensaver.py
+
+running() {
+    pgrep -u "$UID" -f -- "--app-id=$APP_ID" >/dev/null
+}
+
+case "${1:-start}" in
+    start)
+        running && exit 0
+        exec foot --app-id="$APP_ID" --title="Screensaver" \
+            -o colors-dark.background=080a20 -o cursor.blink=no \
+            /usr/bin/python3 "$SCENE"
+        ;;
+    stop)
+        pkill -u "$UID" -f -- "--app-id=$APP_ID"
+        exit 0
+        ;;
+    preview)
+        # Run in the current terminal.
+        exec /usr/bin/python3 "$SCENE"
+        ;;
+    *)
+        echo "usage: $0 [start|stop|preview]" >&2
+        exit 2
+        ;;
+esac

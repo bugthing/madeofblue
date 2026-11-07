@@ -1,0 +1,10 @@
+[Unit]
+Description=Add wheel members to the docker group
+After=systemd-sysusers.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/madeofblue/docker-group
+
+[Install]
+WantedBy=multi-user.target

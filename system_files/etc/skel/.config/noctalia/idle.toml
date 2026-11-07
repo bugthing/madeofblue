@@ -1,0 +1,21 @@
+# Idle: start the screensaver after 2 minutes, lock after 5.
+#
+# Both timers count from the last input, and both respect idle inhibitors
+# (Mod+Ctrl+I "keep awake", or a browser playing video). Any input runs the
+# screensaver's resume_command, which closes it. Choices made in Settings go to
+# settings.toml and override these.
+
+[idle]
+behavior_order = ["screensaver", "lock"]
+
+[idle.behavior.screensaver]
+enabled = true
+timeout = 120
+action = "command"
+command = "madeofblue-screensaver start"
+resume_command = "madeofblue-screensaver stop"
+
+[idle.behavior.lock]
+enabled = true
+timeout = 300
+action = "lock"

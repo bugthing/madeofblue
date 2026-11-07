@@ -1,0 +1,6 @@
+# Bazaar, the Flathub app store Bluefin preinstalls. Kept so systems rebased
+# from earlier Bluefin-DX-based images keep it: flatpak preinstall removes apps
+# it installed once their entry disappears.
+[Flatpak Preinstall io.github.kolunmi.Bazaar]
+Branch=stable
+IsRuntime=false
