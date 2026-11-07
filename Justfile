@@ -293,6 +293,10 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
       --vsock=false --pass-ssh-key=false \
       -i ./output/**/*.{{ type }}
 
+# Download the latest CI-built ISO and write it to a USB drive
+[group('Utility')]
+flash-iso:
+    scripts/flash-iso.sh
 
 # Runs shell check on all Bash scripts
 lint:
