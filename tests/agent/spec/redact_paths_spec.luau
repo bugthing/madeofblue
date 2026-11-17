@@ -28,6 +28,11 @@ T.describe("redact.checkSubject", function()
     T.eq(check("cat ~/.local/state/./agent/config.json").rule, "agent settings")
     T.eq(check("cat ~/.local/state/././agent//config.json").rule, "agent settings")
     T.eq(check("cd ~/.local/state && cat agent/config.json").rule, "agent settings")
+    T.eq(check("cd ~ && cat .local/state/agent/config.json").rule, "agent settings")
+    T.eq(
+      Redact.checkSubject("cd ~ && cat secretdir/x", { home = "/home/u", protected = { "/home/u/secretdir" } }).rule,
+      "agent settings"
+    )
     T.eq(check("cd /var && cat ../home/u/.local/state/agent/config.json").rule, "agent settings")
     T.eq(check("tar c state/agent").rule, "agent settings")
     T.eq(check("ls ~/.local/state && systemctl --user status ssh-agent"), nil)

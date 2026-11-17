@@ -37,12 +37,7 @@ fix:
 clean:
     #!/usr/bin/bash
     set -eoux pipefail
-    touch _build
-    find *_build* -exec rm -rf {} \;
-    rm -f previous.manifest.json
-    rm -f changelog.md
-    rm -f output.env
-    rm -f output/
+    rm -rf _build* previous.manifest.json changelog.md output.env output
 
 # Sudo Clean Repo
 [group('Utility')]
@@ -282,7 +277,7 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
 
     set -euo pipefail
 
-    [ "{{ rebuild }}" -eq 1 ] && echo "Rebuilding the ISO" && just build-vm {{ rebuild }} {{ type }}
+    [ "{{ rebuild }}" -eq 1 ] && echo "Rebuilding the {{ type }} image" && just "rebuild-{{ type }}"
 
     systemd-vmspawn \
       -M "bootc-image" \
@@ -309,6 +304,7 @@ lint:
     fi
     # Run shellcheck on all Bash scripts
     /usr/bin/find . -iname "*.sh" -type f -exec shellcheck "{}" ';'
+    shellcheck system_files/usr/bin/madeofblue-screensaver system_files/usr/libexec/madeofblue/docker-group
 
 # Runs shfmt on all Bash scripts
 format:
@@ -316,11 +312,12 @@ format:
     set -eoux pipefail
     # Check if shfmt is installed
     if ! command -v shfmt &> /dev/null; then
-        echo "shellcheck could not be found. Please install it."
+        echo "shfmt could not be found. Please install it."
         exit 1
     fi
     # Run shfmt on all Bash scripts
     /usr/bin/find . -iname "*.sh" -type f -exec shfmt --write "{}" ';'
+    shfmt --write system_files/usr/bin/madeofblue-screensaver system_files/usr/libexec/madeofblue/docker-group
 
 # Run the agent plugin's Luau unit tests
 [group('Test')]
