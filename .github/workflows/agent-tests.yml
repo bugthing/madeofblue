@@ -57,4 +57,5 @@ jobs:
         run: |
           shellcheck build_files/*.sh scripts/*.sh \
             system_files/usr/bin/madeofblue-screensaver \
-            system_files/usr/libexec/madeofblue/docker-group
+            system_files/usr/libexec/madeofblue/docker-group \
+            system_files/usr/libexec/madeofblue/blueme

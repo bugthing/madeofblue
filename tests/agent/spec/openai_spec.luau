@@ -89,6 +89,16 @@ T.describe("openai adapter", function()
     T.eq(body.model, "m1")
     T.eq(body.stream, nil)
   end)
+
+  T.it("builds a models request and extracts the first model id", function()
+    local req = OpenAI.modelsRequest(CFG)
+    T.eq(req.url, "https://api.example.com/v1/models")
+    T.eq(req.method, "GET")
+    T.contains(table.concat(req.headers, "\n"), "Authorization: Bearer tok")
+    T.eq(OpenAI.firstModel('{"data":[{"id":"qwen3-coder"}]}', json), "qwen3-coder")
+    T.eq(OpenAI.firstModel('{"data":[]}', json), nil)
+    T.eq(OpenAI.firstModel("not json", json), nil)
+  end)
 end)
 
 return true

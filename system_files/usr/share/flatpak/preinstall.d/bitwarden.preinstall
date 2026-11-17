@@ -1,0 +1,5 @@
+# Bitwarden desktop client, installed from Flathub on first boot by
+# flatpak-preinstall.service.
+[Flatpak Preinstall com.bitwarden.desktop]
+Branch=stable
+IsRuntime=false

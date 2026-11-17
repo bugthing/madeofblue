@@ -136,21 +136,7 @@ local function onProvider(index)
   render()
 end
 
-local function save()
-  if form.saving then
-    return
-  end
-  local cfg = Config.normalize({ provider = providerKey(), host = form.host, model = form.model, token = form.token })
-  local errors = Config.validate(cfg)
-  if #errors > 0 then
-    form.error = table.concat(errors, "\n")
-    render()
-    return
-  end
-  form.saving, form.error = true, nil
-  form.saveGen += 1
-  local gen = form.saveGen
-  render()
+local function testAndSave(cfg, gen)
   local started = noctalia.http(PROVIDERS[cfg.provider].testRequest(cfg, noctalia.json), function(res)
     -- The user cancelled (or left and reopened setup): drop the result.
     if gen ~= form.saveGen or view ~= "setup" then
@@ -191,6 +177,53 @@ local function save()
     form.error = "Could not start the test request."
     render()
   end
+end
+
+local function save()
+  if form.saving then
+    return
+  end
+  local cfg = Config.normalize({ provider = providerKey(), host = form.host, model = form.model, token = form.token })
+  if cfg.provider == "openai" and cfg.model == "" then
+    local probeCfg = Config.normalize({ provider = cfg.provider, host = cfg.host, model = "local", token = cfg.token })
+    local probeErrors = Config.validate(probeCfg)
+    if #probeErrors > 0 then
+      form.error = table.concat(probeErrors, "\n")
+      render()
+      return
+    end
+    form.saving, form.error = true, nil
+    form.saveGen += 1
+    local gen = form.saveGen
+    render()
+    local started = noctalia.http(PROVIDERS.openai.modelsRequest(probeCfg), function(res)
+      if gen ~= form.saveGen or view ~= "setup" then
+        return
+      end
+      local detected = (res and res.ok and PROVIDERS.openai.firstModel(res.body, noctalia.json)) or "local"
+      form.model = detected
+      form.rev += 1
+      cfg.model = detected
+      testAndSave(cfg, gen)
+    end)
+    if not started then
+      form.saving = false
+      form.error = "Could not query /models on the host."
+      render()
+    end
+    return
+  end
+  local errors = Config.validate(cfg)
+  if #errors > 0 then
+    form.error = table.concat(errors, "\n")
+    render()
+    return
+  end
+  form.saving, form.error = true, nil
+  form.saveGen += 1
+  local gen = form.saveGen
+  render()
+  testAndSave(cfg, gen)
 end
 
 -- Tool text (what the user approves, reviews or sent) is shown verbatim in
