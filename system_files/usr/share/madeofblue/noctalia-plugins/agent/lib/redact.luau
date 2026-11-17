@@ -122,6 +122,9 @@ function M.checkSubject(text, opts)
     norm = replacePlain(norm, "${HOME}", home)
     norm = replacePlain(norm, "$HOME", home)
     norm = replacePlain(norm, "~/", home .. "/")
+    norm = string.gsub(norm, "%f[^%w_/~]~%f[^%w_/~.-]", function()
+      return home
+    end)
   end
   norm = collapseSlashes(norm)
   for _, path in ipairs(opts.protected or {}) do

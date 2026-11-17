@@ -3,15 +3,19 @@ name: Agent plugin tests
 on:
   pull_request:
     paths:
-      - "system_files/usr/share/madeofblue/noctalia-plugins/**"
-      - "system_files/etc/skel/.config/noctalia/agent.toml"
+      - "build_files/**"
+      - "disk_config/**"
+      - "scripts/**"
+      - "system_files/**"
       - "tests/agent/**"
       - ".github/workflows/agent-tests.yml"
   push:
     branches: [main]
     paths:
-      - "system_files/usr/share/madeofblue/noctalia-plugins/**"
-      - "system_files/etc/skel/.config/noctalia/agent.toml"
+      - "build_files/**"
+      - "disk_config/**"
+      - "scripts/**"
+      - "system_files/**"
       - "tests/agent/**"
       - ".github/workflows/agent-tests.yml"
 
@@ -37,12 +41,20 @@ jobs:
       - name: Validate TOML
         run: |
           python3 - <<'EOF'
-          import tomllib
-          for path in [
-              "system_files/usr/share/madeofblue/noctalia-plugins/agent/plugin.toml",
-              "system_files/etc/skel/.config/noctalia/agent.toml",
-          ]:
+          import glob, tomllib
+          paths = sorted(
+              glob.glob("disk_config/*.toml")
+              + glob.glob("system_files/**/*.toml", recursive=True, include_hidden=True)
+          )
+          assert paths, "no TOML files found"
+          for path in paths:
               with open(path, "rb") as f:
                   tomllib.load(f)
               print("ok", path)
           EOF
+
+      - name: Shellcheck scripts
+        run: |
+          shellcheck build_files/*.sh scripts/*.sh \
+            system_files/usr/bin/madeofblue-screensaver \
+            system_files/usr/libexec/madeofblue/docker-group

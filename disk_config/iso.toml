@@ -1,7 +1,6 @@
-# Installer ISO for madeofblue. Built from iso-kde.toml rather than
-# iso-gnome.toml because GDM (and with it gnome-initial-setup) is replaced by
-# greetd, so nothing creates a user after install: Anaconda's Users module
-# must stay enabled.
+# Installer ISO for madeofblue. Because GDM (and with it gnome-initial-setup)
+# is replaced by greetd, nothing creates a user after install: Anaconda's Users
+# module must stay enabled.
 [customizations.installer.kickstart]
 contents = """
 %post

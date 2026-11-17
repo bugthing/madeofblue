@@ -9,8 +9,14 @@ set -ouex pipefail
 #
 # bootc images ship a single kernel; build a generic (no-hostonly) initramfs
 # for it, with the ostree module bootc needs to find the deployment.
-KVER="$(ls /usr/lib/modules)"
-[ "$(wc -w <<<"$KVER")" -eq 1 ]
+#
+# Only a directory holding a vmlinuz is a kernel: when Fedora's updates repo is
+# a kernel ahead of the base image, packages installed by build.sh can leave an
+# empty /usr/lib/modules/<newer version> behind.
+KERNELS=(/usr/lib/modules/*/vmlinuz)
+[ "${#KERNELS[@]}" -eq 1 ]
+[ -f "${KERNELS[0]}" ]
+KVER="$(basename "$(dirname "${KERNELS[0]}")")"
 
 # /root is a symlink to /var/roothome, which only exists on a booted system;
 # dracut fails to install it (while still exiting 0) unless it is present.

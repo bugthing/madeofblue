@@ -45,6 +45,7 @@ dnf5 install -y \
     make \
     zsh \
     fish \
+    htop \
     podman-compose \
     podman-tui
 

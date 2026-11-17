@@ -259,7 +259,7 @@ function Agent:beginBatch(calls)
       item.sent = "invalid arguments: " .. err
     else
       item.args = args
-      local view = d.tools.describe(c.name, args)
+      local view = d.tools.describe(c.name, args, d.io)
       item.glyph, item.title, item.body = view.glyph, view.title, view.body
       item.canTerminal = c.name == "run_command"
       local hit = d.redact.checkSubject(d.tools.subject(c.name, args, d.io), { home = d.home, protected = d.protected })

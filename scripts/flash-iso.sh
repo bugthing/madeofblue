@@ -55,7 +55,11 @@ iso_size=$(stat -c %s "$iso")
 devices=()
 labels=()
 while IFS= read -r line; do
-	eval "$line" # sets NAME TRAN RM SIZE MODEL TYPE from lsblk -P output
+	NAME="" TRAN="" RM="" SIZE="" MODEL="" TYPE=""
+	while [[ $line =~ ^([A-Z]+)=\"([^\"]*)\"[[:space:]]*(.*)$ ]]; do
+		printf -v "${BASH_REMATCH[1]}" '%s' "${BASH_REMATCH[2]}"
+		line="${BASH_REMATCH[3]}"
+	done
 	[[ "$TYPE" == disk ]] || continue
 	[[ "$TRAN" == usb || "$RM" == 1 ]] || continue
 	devices+=("$NAME")
@@ -68,7 +72,7 @@ echo
 echo "Select the USB drive to write $(basename "$iso") to:"
 PS3="Drive number (Ctrl-C to abort): "
 select label in "${labels[@]}"; do
-	[[ -n "$label" ]] && break
+	[[ -n "$label" ]] && ((REPLY >= 1 && REPLY <= ${#devices[@]})) && break
 	echo "Invalid choice."
 done
 device="${devices[REPLY - 1]}"

@@ -133,6 +133,13 @@ T.describe("tools", function()
     T.contains(view.body, "body")
     local long = string.rep("x", 10000) .. "TAIL"
     T.eq(Tools.describe("write_file", { path = "~/x", content = long }).body, "~/x\n\n" .. long, "the whole content is shown")
+    local io = fakeIo()
+    T.eq(Tools.describe("read_file", { path = "~/x" }, io).body, "~/x", "plain path is unchanged")
+    T.eq(
+      Tools.describe("read_file", { path = "notes/../../.ssh/id_rsa" }, io).body,
+      "notes/../../.ssh/id_rsa (/home/.ssh/id_rsa)",
+      "shows resolved path when .. is used"
+    )
     T.eq(Tools.subject("run_command", { command = "ls" }), "ls")
     T.eq(Tools.subject("read_file", { path = "/etc/hosts" }), "/etc/hosts")
   end)

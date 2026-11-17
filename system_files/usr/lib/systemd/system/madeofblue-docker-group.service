@@ -1,6 +1,7 @@
 [Unit]
 Description=Add wheel members to the docker group
 After=systemd-sysusers.service
+Before=greetd.service systemd-user-sessions.service
 
 [Service]
 Type=oneshot
