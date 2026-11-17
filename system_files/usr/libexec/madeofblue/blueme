@@ -263,9 +263,9 @@ setup_agent() {
 	fi
 	model="$(ask "Model name" "$detected")"
 
-	mkdir -p -m 0700 "$AGENT_DATA_DIR"
 	(
 		umask 077
+		mkdir -p "$AGENT_DATA_DIR"
 		jq -n \
 			--arg provider "openai" \
 			--arg host "$host" \
