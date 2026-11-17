@@ -3,18 +3,44 @@
 -- Pure module: no require, no noctalia.* (see the plan's conventions).
 local M = {}
 
-M.PROVIDERS = { "openai", "anthropic" } -- index 0/1 in the panel's ui.select
+M.PROVIDERS = { "openai", "anthropic" } -- index 0/1 in the panel's panel.luau ui.select
 M.LABELS = { openai = "OpenAI-compatible", anthropic = "Anthropic" }
 M.DEFAULT_HOSTS = {
-  openai = "https://api.openai.com/v1",
+  openai = "http://aipro.lan:11435/v1",
   anthropic = "https://api.anthropic.com",
 }
 M.MODEL_HINTS = {
-  openai = "e.g. gpt-4.1-mini, or qwen2.5 on Ollama",
+  openai = "auto-detected from /v1/models, or e.g. local",
   anthropic = "e.g. claude-sonnet-5-5",
 }
 
 local LOOPBACK = { ["localhost"] = true, ["127.0.0.1"] = true, ["::1"] = true }
+
+local function isPrivateIpv4(host)
+  local a, b, c, d = string.match(host, "^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+  a, b, c, d = tonumber(a), tonumber(b), tonumber(c), tonumber(d)
+  if not a or a > 255 or b > 255 or c > 255 or d > 255 then
+    return false
+  end
+  return a == 10
+    or a == 127
+    or (a == 192 and b == 168)
+    or (a == 172 and b >= 16 and b <= 31)
+    or (a == 100 and b >= 64 and b <= 127)
+end
+
+local function isPrivateHost(host)
+  if not host or host == "" then
+    return false
+  end
+  if LOOPBACK[host] or isPrivateIpv4(host) then
+    return true
+  end
+  return string.match(host, "%.lan$") ~= nil
+    or string.match(host, "%.local$") ~= nil
+    or string.match(host, "%.home%.arpa$") ~= nil
+    or string.match(host, "%.internal$") ~= nil
+end
 
 local function trim(s)
   if type(s) ~= "string" then
@@ -43,7 +69,7 @@ end
 
 function M.isLoopback(url)
   local _, host = M.parseHost(url)
-  return host ~= nil and LOOPBACK[host] == true
+  return isPrivateHost(host)
 end
 
 function M.normalize(cfg)
@@ -65,11 +91,11 @@ function M.validate(cfg)
   if not scheme then
     table.insert(errors, "Host must be a URL such as https://api.example.com.")
   elseif scheme == "http" then
-    if not LOOPBACK[host] then
-      table.insert(errors, "Plain http is only allowed for localhost; use https.")
+    if not isPrivateHost(host) then
+      table.insert(errors, "Plain http is only allowed for localhost or private LAN hosts; use https.")
     end
   elseif scheme ~= "https" then
-    table.insert(errors, "Host must use https (or http for localhost).")
+    table.insert(errors, "Host must use https (or http for localhost/LAN).")
   end
   if cfg.model == "" then
     table.insert(errors, "Enter a model name.")
@@ -108,10 +134,12 @@ function M.encode(cfg, json)
 end
 
 function M.destination(cfg)
-  if M.isLoopback(cfg.host) then
-    return "Local"
-  end
   local _, host = M.parseHost(cfg.host)
+  if host and LOOPBACK[host] then
+    return "Local"
+  elseif isPrivateHost(host) then
+    return "LAN: " .. host
+  end
   return "Remote: " .. (host or "?")
 end
 

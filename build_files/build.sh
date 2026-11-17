@@ -46,6 +46,10 @@ dnf5 install -y \
     zsh \
     fish \
     htop \
+    jq \
+    qrencode \
+    stow \
+    wireguard-tools \
     podman-compose \
     podman-tui
 

@@ -304,7 +304,7 @@ lint:
     fi
     # Run shellcheck on all Bash scripts
     /usr/bin/find . -iname "*.sh" -type f -exec shellcheck "{}" ';'
-    shellcheck system_files/usr/bin/madeofblue-screensaver system_files/usr/libexec/madeofblue/docker-group
+    shellcheck system_files/usr/bin/madeofblue-screensaver system_files/usr/libexec/madeofblue/docker-group system_files/usr/libexec/madeofblue/blueme
 
 # Runs shfmt on all Bash scripts
 format:
@@ -317,7 +317,7 @@ format:
     fi
     # Run shfmt on all Bash scripts
     /usr/bin/find . -iname "*.sh" -type f -exec shfmt --write "{}" ';'
-    shfmt --write system_files/usr/bin/madeofblue-screensaver system_files/usr/libexec/madeofblue/docker-group
+    shfmt --write system_files/usr/bin/madeofblue-screensaver system_files/usr/libexec/madeofblue/docker-group system_files/usr/libexec/madeofblue/blueme
 
 # Run the agent plugin's Luau unit tests
 [group('Test')]

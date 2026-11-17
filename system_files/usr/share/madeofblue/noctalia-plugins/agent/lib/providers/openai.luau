@@ -56,6 +56,29 @@ function M.testRequest(cfg, json)
   }
 end
 
+function M.modelsRequest(cfg)
+  local h = { "Accept: application/json" }
+  if cfg.token ~= "" then
+    table.insert(h, "Authorization: Bearer " .. cfg.token)
+  end
+  return {
+    url = cfg.host .. "/models",
+    method = "GET",
+    headers = h,
+  }
+end
+
+function M.firstModel(body, json)
+  local ok, data = pcall(json.decode, body or "")
+  if ok and type(data) == "table" and type(data.data) == "table" and type(data.data[1]) == "table" then
+    local id = data.data[1].id
+    if type(id) == "string" and id ~= "" then
+      return id
+    end
+  end
+  return nil
+end
+
 function M.newStream(json)
   return { json = json, text = "", calls = {}, order = {}, keyById = {}, last = nil, error = nil }
 end
