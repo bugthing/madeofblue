@@ -54,7 +54,8 @@ RUN test -f /usr/share/madeofblue/noctalia-plugins/agent/plugin.toml
 ## Fail the build on a Niri config error, or a screensaver that cannot start.
 RUN niri validate -c /etc/skel/.config/niri/config.kdl && \
     python3 -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" /usr/libexec/madeofblue/screensaver.py && \
-    command -v madeofblue-screensaver foot htop jq qrencode stow wg && \
+    command -v madeofblue-screensaver foot htop jq qrencode stow wg wl-copy wl-paste xwayland-satellite && \
+    test -f /usr/share/madeofblue/flatpak/overrides/com.bitwarden.desktop && \
     test -x /usr/libexec/madeofblue/blueme
 
 ## Rebuild the initramfs so the boot splash (Plymouth) picks up the MadeOfBlue

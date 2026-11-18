@@ -1,0 +1,8 @@
+# Run Bitwarden Desktop on native Wayland instead of X11/XWayland so its
+# clipboard (copy password / username / TOTP) shares the Wayland selection
+# directly with Niri, Noctalia, and native Wayland browsers like Firefox.
+[Context]
+sockets=wayland;fallback-x11;!x11;
+
+[Environment]
+ELECTRON_OZONE_PLATFORM_HINT=auto

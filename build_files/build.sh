@@ -24,6 +24,8 @@ dnf5 install -y \
     mesa-vulkan-drivers \
     vulkan-loader \
     wayland-utils \
+    wl-clipboard \
+    xwayland-satellite \
     swaybg \
     swayidle \
     swaylock \
