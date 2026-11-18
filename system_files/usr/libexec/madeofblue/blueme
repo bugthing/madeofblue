@@ -1,19 +1,54 @@
 #!/usr/bin/env bash
 # Set up a fresh MadeOfBlue install:
-#   ujust blueme           run all steps (WireGuard VPN -> AI agent -> dotfiles)
-#   ujust blueme vpn       configure the home WireGuard VPN in NetworkManager
-#   ujust blueme agent     configure the Noctalia AI agent (defaults to aipro.lan)
-#   ujust blueme dotfiles  clone and bootstrap github.com/bugthing/dotfiles
+#   ujust blueme            run all steps (VPN -> AI agent -> dotfiles -> Syncthing & packages)
+#   ujust blueme vpn        configure the home WireGuard VPN in NetworkManager
+#   ujust blueme agent      configure the Noctalia AI agent (defaults to aipro.lan)
+#   ujust blueme dotfiles   clone and stow github.com/bugthing/dotfiles into $HOME
+#   ujust blueme syncthing  start Syncthing, pair by QR code, wait for sync, and link folders
+#   ujust blueme packages   install Homebrew bundle, mise tools, and Neovim plugins
+#
+# Environment overrides:
+#   DOTFILES=~/.dotfiles    where the dotfiles repo lives
+#   SKIP_BREW=1             skip brew bundle
+#   SKIP_MISE=1             skip mise install
+#   SKIP_SYNC=1             skip Syncthing pairing and waiting (links what is already there)
 
 set -euo pipefail
 
 DEFAULT_AGENT_HOST="http://aipro.lan:11435/v1"
-DOTFILES_BOOTSTRAP_URL="https://raw.githubusercontent.com/bugthing/dotfiles/main/bootstrap"
 AGENT_DATA_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/noctalia/plugins/data/madeofblue/agent"
 AGENT_CONFIG="$AGENT_DATA_DIR/config.json"
 
-if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
-	eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+DOTFILES="${DOTFILES:-$HOME/.dotfiles}"
+REPO_HTTPS="https://github.com/bugthing/dotfiles.git"
+REPO_SSH="git@github.com:bugthing/dotfiles.git"
+BREW="/home/linuxbrew/.linuxbrew/bin/brew"
+SYNC_ROOT="${SYNC_ROOT:-$HOME/container-volumes/syncthing}"
+ST_CONFIG="$SYNC_ROOT/config/config.xml"
+ST_URL="${ST_URL:-http://127.0.0.1:8384}"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+
+# Stow packages linked into $HOME (per-file links, never whole directories).
+STOW_PACKAGES=(bash git vim tmux ruby containers)
+
+# Syncthing folder labels to wait for. Pairing is done by scanning a QR code,
+# so no device or folder IDs are stored here. Each lands in
+# ~/container-volumes/syncthing/<label>.
+SYNC_FOLDERS=(HomeSync PasswordStore)
+
+# Links from synced data into $HOME, as "path under the syncthing volume:path under $HOME".
+SYNC_LINKS=(
+	"HomeSync/ssh:.ssh"
+	"HomeSync/gnupg:.gnupg"
+	"HomeSync/scripts:scripts"
+	"HomeSync/Pictures:Pictures/HomeSync"
+	"HomeSync/Documents:Documents/HomeSync"
+	"HomeSync/Notes:Notes"
+	"PasswordStore:.password-store"
+)
+
+if [ -x "$BREW" ]; then
+	eval "$("$BREW" shellenv)"
 fi
 
 log() { printf '\n\033[1;34m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
@@ -41,6 +76,22 @@ confirm() {
 	read -rp "$prompt $hint " reply
 	reply="${reply:-$default}"
 	[[ "$reply" =~ ^[Yy] ]]
+}
+
+# Ask on the terminal; with no terminal, leave the decision to the web UI.
+confirm_tty() {
+	local reply
+	{ exec 3</dev/tty; } 2>/dev/null || return 2
+	printf '%s [y/N] ' "$1" >/dev/tty
+	read -r reply <&3 || reply=""
+	exec 3<&-
+	[[ "$reply" =~ ^[Yy] ]]
+}
+
+backup() {
+	local dest="$1.pre-bootstrap-$STAMP"
+	mv "$1" "$dest"
+	info "Moved $1 to $dest"
 }
 
 # --- Bitwarden CLI helper ---------------------------------------------------
@@ -276,41 +327,335 @@ setup_agent() {
 	info "Saved agent config to $AGENT_CONFIG (open with Mod+A)."
 }
 
-# --- Step 3: Dotfiles & Syncthing bootstrap ---------------------------------
+# --- Step 3: Dotfiles (clone & stow) ----------------------------------------
+
+ensure_repo() {
+	if [ ! -d "$DOTFILES/.git" ]; then
+		info "Cloning $REPO_HTTPS into $DOTFILES"
+		git clone "$REPO_HTTPS" "$DOTFILES"
+	fi
+}
+
+# Ensure stowing and pairing tools are available.
+install_tools() {
+	if [ -x "$BREW" ]; then
+		eval "$("$BREW" shellenv)"
+	fi
+	local tool
+	for tool in stow jq qrencode; do
+		command -v "$tool" >/dev/null && continue
+		{ command -v brew >/dev/null && brew install "$tool" </dev/null; } ||
+			warn "could not install $tool"
+	done
+}
+
+# Move aside anything stow would refuse to replace.
+clear_stow_conflicts() {
+	local pkg="$1" file rel target
+	while IFS= read -r -d '' file; do
+		rel="${file#"$DOTFILES/$pkg/"}"
+		target="$HOME/$rel"
+		if [ -L "$target" ]; then
+			[ "$(realpath "$target" 2>/dev/null)" = "$(realpath "$file")" ] || backup "$target"
+		elif [ -e "$target" ]; then
+			backup "$target"
+		fi
+	done < <(git -C "$DOTFILES" ls-files -z -- "$pkg" | while IFS= read -r -d '' f; do printf '%s\0' "$DOTFILES/$f"; done)
+}
+
+# GNU stow when available, otherwise the bundled stowsh. Both link file by file.
+stow_packages() {
+	local pkg
+	command -v stow >/dev/null || info "stow not found; using $DOTFILES/stowsh"
+	for pkg in "${STOW_PACKAGES[@]}"; do
+		info "Stowing $pkg"
+		clear_stow_conflicts "$pkg"
+		if command -v stow >/dev/null; then
+			stow --no-folding -d "$DOTFILES" -t "$HOME" -R "$pkg"
+		else
+			bash "$DOTFILES/stowsh" -s -g -t "$HOME" "$DOTFILES/$pkg" 2>/dev/null
+		fi
+	done
+}
+
+use_ssh_remote() {
+	[ -d "$DOTFILES/.git" ] || return 0
+	local current
+	current="$(git -C "$DOTFILES" remote get-url origin 2>/dev/null || true)"
+	if [ "$current" = "$REPO_HTTPS" ] && compgen -G "$HOME/.ssh/id_*" >/dev/null; then
+		git -C "$DOTFILES" remote set-url origin "$REPO_SSH"
+		info "Switched $DOTFILES remote to $REPO_SSH"
+	fi
+}
 
 setup_dotfiles() {
-	log "Dotfiles & Syncthing (github.com/bugthing/dotfiles)"
-	if ! confirm "Run dotfiles bootstrap now?" "Y"; then
+	log "Dotfiles ($REPO_HTTPS)"
+	if ! confirm "Clone and stow dotfiles into $HOME?" "Y"; then
 		return 0
 	fi
-	if [ -f "$HOME/.dotfiles/bootstrap" ]; then
-		bash "$HOME/.dotfiles/bootstrap"
+	ensure_repo
+	install_tools
+	stow_packages
+	use_ssh_remote
+}
+
+# --- Step 4: Syncthing & synced folders -------------------------------------
+
+st() {
+	local method="$1" path="$2"
+	shift 2
+	curl -fsS -X "$method" -H "X-API-Key: $ST_KEY" -H "Content-Type: application/json" "$ST_URL$path" "$@"
+}
+
+start_syncthing() {
+	info "Starting Syncthing"
+	mkdir -p "$SYNC_ROOT"
+	systemctl --user daemon-reload
+	systemctl --user start syncthing.service
+
+	local _
+	ST_KEY=""
+	for _ in $(seq 180); do
+		if [ -f "$ST_CONFIG" ]; then
+			ST_KEY="$(sed -n 's:.*<apikey>\(.*\)</apikey>.*:\1:p' "$ST_CONFIG")"
+			if [ -n "$ST_KEY" ] && st GET /rest/system/ping >/dev/null 2>&1; then
+				return
+			fi
+		fi
+		sleep 1
+	done
+	die "Syncthing API did not come up; check: systemctl --user status syncthing"
+}
+
+folder_id() {
+	st GET /rest/config/folders | jq -r --arg label "$1" '[.[] | select(.label == $label)][0].id // empty'
+}
+
+missing_folders() {
+	local label
+	for label in "${SYNC_FOLDERS[@]}"; do
+		[ -n "$(folder_id "$label")" ] || printf '%s\n' "$label"
+	done
+}
+
+# Accept devices that connect after scanning our QR code. Accepted devices act
+# as introducers and their shared folders are accepted automatically.
+accept_pending_devices() {
+	local pending id name rc
+	pending="$(st GET /rest/cluster/pending/devices)"
+	for id in $(jq -r 'keys[]' <<<"$pending"); do
+		[ -n "${ASKED[$id]:-}" ] && continue
+		ASKED[$id]=1
+		name="$(jq -r --arg id "$id" '.[$id].name // "unnamed"' <<<"$pending")"
+		rc=0
+		confirm_tty "Device \"$name\" ($id) wants to connect. Accept it?" || rc=$?
+		if [ "$rc" = 0 ]; then
+			st PUT "/rest/config/devices/$id" \
+				-d "$(jq -n --arg id "$id" --arg name "$name" \
+					'{deviceID: $id, name: $name, introducer: true, autoAcceptFolders: true}')" >/dev/null
+			info "Accepted $name; waiting for it to share ${SYNC_FOLDERS[*]}"
+		elif [ "$rc" = 2 ]; then
+			info "Accept \"$name\" at $ST_URL, ticking \"Introducer\" and \"Auto Accept\""
+		else
+			info "Ignored $name"
+		fi
+	done
+}
+
+pair_syncthing() {
+	local missing
+	missing="$(missing_folders)"
+	[ -z "$missing" ] && return
+	# Auto-accepted folders go to <default path>/<label>.
+	st PATCH /rest/config/defaults/folder -d '{"path": "~"}' >/dev/null
+	local my_id
+	my_id="$(st GET /rest/system/status | jq -r .myID)"
+	info "In the Syncthing app on your phone, add a device and scan this code:"
+	qrencode -t ansiutf8 "$my_id"
+	info "Then share these folders with it: ${SYNC_FOLDERS[*]}"
+	declare -gA ASKED=()
+	while [ -n "$missing" ]; do
+		accept_pending_devices
+		sleep 3
+		missing="$(missing_folders)"
+	done
+}
+
+wait_for_sync() {
+	local label fid status state global need line last=""
+	info "Waiting for the folders to sync (Ctrl-C is safe; re-run to resume)..."
+	for label in "${SYNC_FOLDERS[@]}"; do
+		fid="$(folder_id "$label")"
+		while :; do
+			status="$(st GET "/rest/db/status?folder=$fid" 2>/dev/null || echo '{}')"
+			state="$(jq -r '.state // "unknown"' <<<"$status")"
+			global="$(jq -r '.globalTotalItems // 0' <<<"$status")"
+			need="$(jq -r '.needTotalItems // 0' <<<"$status")"
+			if [ "$state" = idle ] && [ "$global" -gt 0 ] && [ "$need" -eq 0 ]; then
+				info "$label is in sync ($global items)"
+				break
+			fi
+			if [ "$global" -eq 0 ]; then
+				line="$label: waiting for data"
+			else
+				line="$label: $state, $need of $global items left"
+			fi
+			[ "$line" != "$last" ] && info "$line" && last="$line"
+			sleep 5
+		done
+	done
+}
+
+link_synced() {
+	local entry src dst
+	for entry in "${SYNC_LINKS[@]}"; do
+		src="$SYNC_ROOT/${entry%%:*}"
+		dst="$HOME/${entry#*:}"
+		if [ ! -e "$src" ]; then
+			warn "$src does not exist; not linking $dst"
+			continue
+		fi
+		[ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ] && continue
+		if [ -e "$dst" ] || [ -L "$dst" ]; then
+			backup "$dst"
+		fi
+		mkdir -p "$(dirname "$dst")"
+		ln -s "$src" "$dst"
+		info "Linked $dst -> $src"
+		case "$dst" in
+		"$HOME/.ssh" | "$HOME/.gnupg") chmod 700 "$src" ;;
+		esac
+	done
+	if command -v gpgconf >/dev/null; then
+		gpgconf --kill gpg-agent 2>/dev/null || true
+	fi
+}
+
+setup_syncthing() {
+	log "Syncthing (${SYNC_FOLDERS[*]})"
+	if ! confirm "Set up Syncthing and link synced folders?" "Y"; then
+		return 0
+	fi
+	install_tools
+	if [ "${SKIP_SYNC:-0}" = 1 ]; then
+		info "Skipping Syncthing pairing (SKIP_SYNC=1)"
 	else
-		curl -fsSL "$DOTFILES_BOOTSTRAP_URL" | bash
+		start_syncthing
+		pair_syncthing
+		wait_for_sync
+	fi
+	link_synced
+	use_ssh_remote
+}
+
+# --- Step 5: Packages (Homebrew bundle, mise, Neovim) -----------------------
+
+# The slow installs; in `all` mode they run while Syncthing syncs. Failures only warn.
+install_packages() {
+	if [ -x "$BREW" ]; then
+		eval "$("$BREW" shellenv)"
+	fi
+
+	if [ "${SKIP_BREW:-0}" = 1 ]; then
+		info "Skipping brew bundle"
+	elif command -v brew >/dev/null; then
+		info "Installing ~/.Brewfile"
+		brew bundle --global </dev/null ||
+			warn "brew bundle reported failures; continuing"
+	else
+		warn "Homebrew not found at $BREW; skipping brew bundle"
+	fi
+
+	if [ "${SKIP_MISE:-0}" = 1 ]; then
+		info "Skipping mise install"
+	elif command -v mise >/dev/null; then
+		info "Installing mise tools from ~/.config/mise/config.toml"
+		(cd "$HOME" && mise install --yes </dev/null) ||
+			warn "mise install reported failures; continuing"
+	else
+		warn "mise not found; skipping mise install"
+	fi
+
+	if command -v nvim >/dev/null; then
+		info "Installing Neovim plugins"
+		nvim --headless +qa </dev/null || warn "Neovim plugin install failed; continuing"
+	else
+		warn "nvim not found; skipping Neovim plugins"
+	fi
+}
+
+setup_packages() {
+	log "Packages (Homebrew bundle, mise, Neovim)"
+	if ! confirm "Install Homebrew bundle, mise tools, and Neovim plugins?" "Y"; then
+		return 0
+	fi
+	install_packages
+}
+
+setup_syncthing_and_packages() {
+	local do_sync=0 do_pkgs=0
+	log "Syncthing (${SYNC_FOLDERS[*]})"
+	if [ "${SKIP_SYNC:-0}" = 1 ]; then
+		info "Skipping Syncthing pairing (SKIP_SYNC=1)"
+	elif confirm "Set up Syncthing and link synced folders?" "Y"; then
+		do_sync=1
+	fi
+
+	log "Packages (Homebrew bundle, mise, Neovim)"
+	if confirm "Install Homebrew bundle, mise tools, and Neovim plugins?" "Y"; then
+		do_pkgs=1
+	fi
+
+	if [ "$do_sync" -eq 1 ]; then
+		install_tools
+		start_syncthing
+		pair_syncthing
+	fi
+	if [ "$do_pkgs" -eq 1 ]; then
+		install_packages
+	fi
+	if [ "$do_sync" -eq 1 ]; then
+		wait_for_sync
+		link_synced
+		use_ssh_remote
+	elif [ "${SKIP_SYNC:-0}" = 1 ]; then
+		link_synced
+		use_ssh_remote
 	fi
 }
 
 # --- Entrypoint -------------------------------------------------------------
 
-step="${1:-all}"
-case "$step" in
-all)
-	setup_vpn
-	setup_agent
-	setup_dotfiles
-	log "All done! Press Mod+A to open the agent."
-	;;
-vpn)
-	setup_vpn
-	;;
-agent)
-	setup_agent
-	;;
-dotfiles)
-	setup_dotfiles
-	;;
-*)
-	echo "usage: ujust blueme [all|vpn|agent|dotfiles]" >&2
-	exit 2
-	;;
-esac
+main() {
+	local step="${1:-all}"
+	case "$step" in
+	all)
+		setup_vpn
+		setup_agent
+		setup_dotfiles
+		setup_syncthing_and_packages
+		log "All done! Log out and back in to pick up the new shell config, or press Mod+A to open the agent."
+		;;
+	vpn)
+		setup_vpn
+		;;
+	agent)
+		setup_agent
+		;;
+	dotfiles)
+		setup_dotfiles
+		;;
+	syncthing)
+		setup_syncthing
+		;;
+	packages)
+		setup_packages
+		;;
+	*)
+		echo "usage: ujust blueme [all|vpn|agent|dotfiles|syncthing|packages]" >&2
+		exit 2
+		;;
+	esac
+}
+
+[ "${BLUEME_NO_MAIN:-0}" = 1 ] || main "$@"
