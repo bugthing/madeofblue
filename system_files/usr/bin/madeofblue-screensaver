@@ -13,23 +13,23 @@ running() {
     pgrep -u "$UID" -f -- "--app-id=$APP_ID" >/dev/null
 }
 
-case "${1:-start}" in
-    start)
-        running && exit 0
-        exec foot --app-id="$APP_ID" --title="Screensaver" \
-            -o colors-dark.background=080a20 -o cursor.blink=no \
-            /usr/bin/python3 "$SCENE"
-        ;;
-    stop)
-        pkill -u "$UID" -f -- "--app-id=$APP_ID"
-        exit 0
-        ;;
-    preview)
-        # Run in the current terminal.
-        exec /usr/bin/python3 "$SCENE"
-        ;;
-    *)
-        echo "usage: $0 [start|stop|preview]" >&2
-        exit 2
-        ;;
+cmd="${1:-start}"
+shift || true
+
+case "$cmd" in
+start)
+    running && exit 0
+    exec /usr/bin/python3 "$SCENE" --app-id="$APP_ID" "$@"
+    ;;
+stop)
+    pkill -u "$UID" -f -- "--app-id=$APP_ID"
+    exit 0
+    ;;
+preview)
+    exec /usr/bin/python3 "$SCENE" --preview --app-id="$APP_ID" "$@"
+    ;;
+*)
+    echo "usage: $0 [start|stop|preview] [--tty] [--wallpaper]" >&2
+    exit 2
+    ;;
 esac

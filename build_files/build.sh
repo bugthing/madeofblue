@@ -29,9 +29,13 @@ dnf5 install -y \
     swaybg \
     swayidle \
     swaylock \
+    grim \
+    gtk4 \
     foot \
     lxpolkit \
     python3 \
+    python3-cairo \
+    python3-gobject \
     jetbrains-mono-fonts-all \
     google-noto-sans-fonts \
     google-noto-sans-mono-fonts \

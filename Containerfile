@@ -53,8 +53,8 @@ RUN test -f /usr/share/madeofblue/noctalia-plugins/agent/plugin.toml
 ### DEFAULT SESSION CONFIG
 ## Fail the build on a Niri config error, or a screensaver that cannot start.
 RUN niri validate -c /etc/skel/.config/niri/config.kdl && \
-    python3 -c "import ast, sys; ast.parse(open(sys.argv[1]).read())" /usr/libexec/madeofblue/screensaver.py && \
-    command -v madeofblue-screensaver foot htop jq qrencode stow wg wl-copy wl-paste xwayland-satellite && \
+    python3 -c "import ast, cairo, gi, sys; gi.require_version('Gtk', '4.0'); ast.parse(open(sys.argv[1]).read())" /usr/libexec/madeofblue/screensaver.py && \
+    command -v madeofblue-screensaver foot grim htop jq qrencode stow wg wl-copy wl-paste xwayland-satellite && \
     test -f /usr/share/madeofblue/flatpak/overrides/com.bitwarden.desktop && \
     test -x /usr/libexec/madeofblue/blueme
 
