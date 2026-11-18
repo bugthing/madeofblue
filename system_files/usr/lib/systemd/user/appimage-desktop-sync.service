@@ -1,0 +1,6 @@
+[Unit]
+Description=Create .desktop files for ~/Applications AppImages
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/appimage-desktop-sync

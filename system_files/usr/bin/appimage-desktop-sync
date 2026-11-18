@@ -1,0 +1,29 @@
+#!/usr/bin/bash
+# Sync ~/Applications/*.AppImage -> ~/.local/share/applications/appimage-*.desktop
+src="$HOME/Applications"
+dst="$HOME/.local/share/applications"
+mkdir -p "$dst"
+shopt -s nullglob nocaseglob
+
+keep=()
+for f in "$src"/*.AppImage; do
+    [[ -x $f ]] || continue
+    base=$(basename "$f")
+    base=${base%.*}
+    name=$(sed -E 's/[-_.](linux|x86_64|amd64|x64|v?[0-9]).*//I' <<<"$base")
+    id="appimage-$(tr '[:upper:] ' '[:lower:]-' <<<"$name")"
+    icon=application-x-executable
+    for ext in png svg; do [[ -f $src/$name.$ext ]] && icon="$src/$name.$ext"; done
+    out="$dst/$id.desktop"
+    keep+=("$out")
+    tmp=$(mktemp)
+    printf '[Desktop Entry]\nType=Application\nName=%s\nExec="%s"\nIcon=%s\nTerminal=false\nCategories=Utility;\nX-AppImage-Sync=true\n' \
+        "$name" "$f" "$icon" >"$tmp"
+    cmp -s "$tmp" "$out" && rm "$tmp" || mv "$tmp" "$out"
+done
+
+# remove entries we created whose AppImage is gone
+for d in "$dst"/appimage-*.desktop; do
+    grep -q '^X-AppImage-Sync=true' "$d" || continue
+    [[ " ${keep[*]} " == *" $d "* ]] || rm "$d"
+done
