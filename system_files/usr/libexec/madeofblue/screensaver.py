@@ -1364,11 +1364,30 @@ def load_initial_surface(width, height, force_wallpaper=False):
 
 def run_gui(app_id="madeofblue-screensaver", preview=False, force_wallpaper=False):
     """Run the fullscreen GTK4 + Cairo screensaver window."""
+    import ctypes
+
+    has_layer_shell = False
+    try:
+        ctypes.CDLL("libgtk4-layer-shell.so.0", mode=ctypes.RTLD_GLOBAL)
+        has_layer_shell = True
+    except OSError:
+        pass
+
     import gi
 
     gi.require_version("Gdk", "4.0")
     gi.require_version("Gtk", "4.0")
     from gi.repository import Gdk, GLib, Gtk
+
+    Gtk4LayerShell = None
+    if has_layer_shell:
+        try:
+            gi.require_version("Gtk4LayerShell", "1.0")
+            from gi.repository import Gtk4LayerShell as _Gtk4LayerShell
+
+            Gtk4LayerShell = _Gtk4LayerShell
+        except (ValueError, ImportError):
+            Gtk4LayerShell = None
 
     GLib.set_prgname(app_id)
     Gtk.init()
@@ -1391,7 +1410,24 @@ def run_gui(app_id="madeofblue-screensaver", preview=False, force_wallpaper=Fals
     win = Gtk.Window()
     win.set_title("Screensaver")
     win.set_decorated(False)
-    win.fullscreen()
+
+    if Gtk4LayerShell is not None and Gtk4LayerShell.is_supported():
+        Gtk4LayerShell.init_for_window(win)
+        Gtk4LayerShell.set_namespace(win, app_id)
+        Gtk4LayerShell.set_layer(win, Gtk4LayerShell.Layer.OVERLAY)
+        Gtk4LayerShell.set_exclusive_zone(win, -1)
+        Gtk4LayerShell.set_keyboard_mode(
+            win, Gtk4LayerShell.KeyboardMode.ON_DEMAND
+        )
+        for edge in (
+            Gtk4LayerShell.Edge.TOP,
+            Gtk4LayerShell.Edge.BOTTOM,
+            Gtk4LayerShell.Edge.LEFT,
+            Gtk4LayerShell.Edge.RIGHT,
+        ):
+            Gtk4LayerShell.set_anchor(win, edge, True)
+    else:
+        win.fullscreen()
 
     blank_cursor = Gdk.Cursor.new_from_name("none", None)
     if blank_cursor is not None:

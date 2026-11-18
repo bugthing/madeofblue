@@ -32,6 +32,7 @@ dnf5 install -y \
     swaylock \
     grim \
     gtk4 \
+    gtk4-layer-shell \
     foot \
     lxpolkit \
     python3 \
