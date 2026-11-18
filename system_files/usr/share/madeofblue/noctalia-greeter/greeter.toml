@@ -1,6 +1,27 @@
 # Declarative Noctalia greeter settings, copied into /var/lib/noctalia-greeter/
 # on boot by /usr/lib/tmpfiles.d/noctalia-greeter.conf.
-# Use the same MadeOfBlue wallpaper on the login screen as on the desktop.
+# Matches the MadeOfBlue desktop wallpaper and dark cyan/cobalt palette.
+
+[appearance]
+theme_mode = "dark"
 
 [appearance.wallpaper]
 path = "/usr/share/backgrounds/madeofblue/madeofblue.jpeg"
+
+[appearance.palette]
+primary = "#38b4fc"
+on_primary = "#071320"
+secondary = "#2565e8"
+on_secondary = "#f0f6ff"
+tertiary = "#3ee084"
+on_tertiary = "#061a10"
+error = "#e03c44"
+on_error = "#180406"
+surface = "#0c1017"
+on_surface = "#e6edf7"
+surface_container = "#151c28"
+on_surface_variant = "#8e9cb2"
+outline_variant = "#253142"
+shadow = "#000000"
+hover = "#38b4fc"
+on_hover = "#071320"

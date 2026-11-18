@@ -33,7 +33,15 @@ layout {
 
     focus-ring {
         width 1
+        active-gradient from="#38b4fc" to="#2565e8" angle=135
+        inactive-color "#1c2433"
     }
+}
+
+// Round window corners and clip window contents to match the focus ring.
+window-rule {
+    geometry-corner-radius 8
+    clip-to-geometry true
 }
 
 // Launch the Noctalia shell (bar, launcher, notifications, control center,
@@ -42,10 +50,14 @@ spawn-at-startup "noctalia"
 
 // Fallback wallpaper daemon; Noctalia manages the wallpaper once running,
 // this just avoids a flash of empty background before it is ready.
-spawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/madeofblue/madeofblue.jpeg" "-m" "fill" "-c" "#1d1f21"
+spawn-at-startup "swaybg" "-i" "/usr/share/backgrounds/madeofblue/madeofblue.jpeg" "-m" "fill" "-c" "#0c1017"
 
 // Polkit authentication agent, needed for GUI privilege-escalation prompts.
 spawn-at-startup "lxpolkit"
+
+// KDE Connect daemon and system-tray indicator for phone pairing, clipboard,
+// notifications, and file sharing.
+spawn-at-startup "kdeconnect-indicator"
 
 // The idle screensaver (madeofblue-screensaver, started by Noctalia after two
 // minutes idle) covers the whole output, bar included.

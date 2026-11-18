@@ -1,0 +1,12 @@
+# Default Noctalia theme for MadeOfBlue.
+#
+# Uses the custom MadeOfBlue palette (~/.config/noctalia/palettes/MadeOfBlue.json)
+# tuned to the workshop wallpaper and Screaming Hand cyan/cobalt accents.
+# Change it anytime in Settings (Mod+Ctrl+Shift+Space), toggle dark/light with
+# Mod+Ctrl+T, or set source = "wallpaper" for dynamic wallpaper extraction.
+
+[theme]
+mode = "dark"
+shell_mode = "follow"
+source = "custom"
+custom_palette = "MadeOfBlue"

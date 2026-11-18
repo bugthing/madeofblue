@@ -14,6 +14,7 @@ dnf5 install -y \
     xdg-desktop-portal-gtk \
     gnome-keyring \
     gnome-keyring-pam \
+    kde-connect \
     nautilus \
     xdg-user-dirs \
     tuned-ppd \
@@ -118,11 +119,19 @@ for f in /usr/lib/os-release /etc/os-release; do
         -e 's/^NAME=.*/NAME="MadeOfBlue"/' \
         -e '/^PRETTY_NAME=/s/Fedora Linux/MadeOfBlue/' \
         -e 's/^DEFAULT_HOSTNAME=.*/DEFAULT_HOSTNAME="madeofblue"/' \
+        -e 's/^LOGO=.*/LOGO="madeofblue-logo"/' \
         "$f"
     grep -q '^NAME="MadeOfBlue"$' "$f"
     grep -q '^PRETTY_NAME=.*MadeOfBlue' "$f"
     grep -q '^DEFAULT_HOSTNAME="madeofblue"$' "$f"
+    grep -q '^LOGO="madeofblue-logo"$' "$f"
 done
+
+# Open KDE Connect ports (1714-1764 TCP/UDP) in Fedora's default firewall so
+# phone discovery and file transfers work out of the box.
+if command -v firewall-offline-cmd >/dev/null 2>&1; then
+    firewall-offline-cmd --add-service=kdeconnect
+fi
 
 ### Enable services
 

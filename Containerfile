@@ -44,8 +44,10 @@ COPY system_files /
 ## Units shipped in system_files: flatpak-preinstall.service installs the apps
 ## under /usr/share/flatpak/preinstall.d/; madeofblue-docker-group.service adds
 ## wheel users to the docker group; appimage-desktop-sync.timer creates .desktop
-## entries for executable AppImages in ~/Applications.
-RUN systemctl enable flatpak-preinstall.service madeofblue-docker-group.service && \
+## entries for executable AppImages in ~/Applications; dconf update compiles
+## the system-wide dark theme defaults under /etc/dconf/db/local.d/.
+RUN dconf update && \
+    systemctl enable flatpak-preinstall.service madeofblue-docker-group.service && \
     systemctl --global enable appimage-desktop-sync.timer
 
 ### AGENT PLUGIN
@@ -55,8 +57,13 @@ RUN test -f /usr/share/madeofblue/noctalia-plugins/agent/plugin.toml
 ### DEFAULT SESSION CONFIG
 ## Fail the build on a Niri config error, or a screensaver that cannot start.
 RUN niri validate -c /etc/skel/.config/niri/config.kdl && \
-    python3 -c "import ast, cairo, gi, sys; gi.require_version('Gtk', '4.0'); ast.parse(open(sys.argv[1]).read())" /usr/libexec/madeofblue/screensaver.py && \
-    command -v appimage-desktop-sync madeofblue-screensaver foot grim htop jq qrencode stow wg wl-copy wl-paste xwayland-satellite && \
+    python3 -c "import ast, cairo, gi, json, sys; gi.require_version('Gtk', '4.0'); ast.parse(open(sys.argv[1]).read()); json.load(open(sys.argv[2]))" \
+        /usr/libexec/madeofblue/screensaver.py \
+        /etc/skel/.config/noctalia/palettes/MadeOfBlue.json && \
+    command -v appimage-desktop-sync madeofblue-screensaver foot grim htop jq kdeconnect-app kdeconnect-cli kdeconnect-indicator qrencode stow wg wl-copy wl-paste xwayland-satellite && \
+    cmp -s /usr/share/pixmaps/madeofblue-logo.svg /usr/share/noctalia-greeter/assets/noctalia.svg && \
+    cmp -s /usr/share/pixmaps/madeofblue-logo.svg /usr/share/noctalia/assets/noctalia.svg && \
+    test -f /etc/skel/.config/foot/foot.ini && \
     test -f /usr/share/madeofblue/flatpak/overrides/com.bitwarden.desktop && \
     test -f /usr/lib/systemd/user/appimage-desktop-sync.service && \
     test -f /usr/lib/systemd/user/appimage-desktop-sync.timer && \
