@@ -1,0 +1,6 @@
+# Declarative Noctalia greeter settings, copied into /var/lib/noctalia-greeter/
+# on boot by /usr/lib/tmpfiles.d/noctalia-greeter.conf.
+# Use the same MadeOfBlue wallpaper on the login screen as on the desktop.
+
+[appearance.wallpaper]
+path = "/usr/share/backgrounds/madeofblue/madeofblue.jpeg"
