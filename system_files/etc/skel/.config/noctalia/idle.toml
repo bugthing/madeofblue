@@ -1,6 +1,6 @@
-# Idle: start the screensaver after 2 minutes (or after 30 seconds while on
-# the lock screen), and lock the session after 5 minutes.
+# Idle: start the screensaver after 2 minutes, and lock the session after 5 minutes.
 #
+# The screensaver should be visible before the lock screen activates.
 # Both timers count from the last input, and both respect idle inhibitors
 # (Mod+Ctrl+I "keep awake", or a browser playing video). Any input runs the
 # screensaver's resume_command, which closes it. Choices made in Settings go to
@@ -21,3 +21,7 @@ resume_command = "madeofblue-screensaver stop"
 enabled = true
 timeout = 300
 action = "lock"
+
+# Note: The screensaver is designed to run fullscreen and should be visible
+# when the lock screen activates. If lock screen appears without screensaver,
+# it may be due to how the lock screen is implemented in the desktop environment.
