@@ -158,10 +158,9 @@ import_wg_conf() {
 	local tmpdir="/dev/shm"
 	[ -d "$tmpdir" ] || tmpdir="/tmp"
 	local tmp="$tmpdir/$name.conf"
-	(
-		umask 077
-		printf '%s\n' "$content" >"$tmp"
-	)
+	# Create temp file and set up cleanup
+	umask 077
+	printf '%s\n' "$content" >"$tmp"
 	trap 'rm -f "$tmp"' RETURN
 	sudo nmcli connection delete "$name" >/dev/null 2>&1 || true
 	sudo nmcli connection import type wireguard file "$tmp"
